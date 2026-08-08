@@ -157,8 +157,24 @@ class PlayerAgent:
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
         resp = _safe_create(client, **kwargs)
-        # content 可能为 None（如被截断）；用空串兜底，交由上层解析做降级处理。
-        return (resp.choices[0].message.content or "").strip()
+        content = (resp.choices[0].message.content or "").strip()
+        if not content:
+            # Some reasoning models can spend the entire small action budget on
+            # hidden reasoning and return no visible speech/JSON. Retry once with
+            # a larger bounded budget; an empty second response remains a hard
+            # failure instead of becoming silent speech or a random action.
+            retry_kwargs = dict(kwargs)
+            budget_key = (
+                "max_completion_tokens"
+                if "max_completion_tokens" in retry_kwargs
+                else "max_tokens"
+            )
+            retry_kwargs[budget_key] = max(int(retry_kwargs.get(budget_key, 0)) * 4, 2048)
+            resp = _safe_create(client, **retry_kwargs)
+            content = (resp.choices[0].message.content or "").strip()
+        if not content:
+            raise RuntimeError("LLM returned empty visible content after bounded retry")
+        return content
 
     # ---------- 三种对外能力：发言 / 决策（选目标）/ 投票 ----------
 
@@ -186,6 +202,7 @@ class PlayerAgent:
             "请只返回 JSON：{\"target\": \"玩家名或none\", \"reason\": \"一句话理由\"}"
         )
         raw = self._chat(instruction, players, max_tokens=120, json_mode=True)
+        self.last_decision_reason = self._parse_reason(raw)
         target = self._parse_target(raw, candidates, allow_none)
         return target
 
@@ -195,10 +212,15 @@ class PlayerAgent:
             return self._offline_vote(candidates)
         instruction = (
             "现在是白天投票放逐环节。请根据全场发言与你的推理，投出你认为最可能是"
-            "狼人的玩家。\n候选玩家：" + "、".join(candidates) + "。\n"
+            "狼人的玩家。好人阵营必须按证据强度决策：没有对跳且已报告自洽查验结果的"
+            "预言家声明是当前最强公开证据；除非有具体矛盾或另一名预言家对跳，不得投该"
+            "声明者。若其报告某玩家是狼人，应优先投被查杀者；被查杀者仅仅否认并不构成"
+            "矛盾或对跳。投票理由必须引用具体发言、查验或既有票型，不得随机猜测。\n"
+            "候选玩家：" + "、".join(candidates) + "。\n"
             "请只返回 JSON：{\"target\": \"玩家名\", \"reason\": \"一句话理由\"}"
         )
         raw = self._chat(instruction, players, max_tokens=120, json_mode=True)
+        self.last_decision_reason = self._parse_reason(raw)
         return self._parse_target(raw, candidates, allow_none=True)
 
     # ---------- 离线（规则）策略：只读自己的 memory，绝不访问他人上下文 ----------
@@ -274,6 +296,14 @@ class PlayerAgent:
         return f"我是村民，没有夜间信息，只能靠推理，感觉 {suspect} 稍微可疑。"
 
     # ---------- 解析工具 ----------
+    @staticmethod
+    def _parse_reason(raw: str) -> Optional[str]:
+        try:
+            reason = json.loads(raw).get("reason")
+        except Exception:
+            return None
+        return reason.strip() if isinstance(reason, str) and reason.strip() else None
+
     @staticmethod
     def _parse_target(raw: str, candidates: List[str], allow_none: bool) -> Optional[str]:
         target = None

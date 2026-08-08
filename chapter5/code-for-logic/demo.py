@@ -19,7 +19,7 @@
     python demo.py --mode solver
 
     # LLM 对照实验(需要 OPENAI_API_KEY)：
-    export OPENAI_API_KEY=sk-...
+    export OPENAI_API_KEY=your-openai-api-key
     python demo.py                       # 默认 both：跑 纯思考 vs 代码辅助 全部题目
     python demo.py --mode pure           # 只跑纯思考
     python demo.py --limit 4             # 只跑前 4 题(省钱冒烟测试)
@@ -188,7 +188,16 @@ CODE_SYSTEM = (
 
 def parse_answer(text, names):
     """从模型输出里提取最后一个形如 {name: knight/knave} 的 JSON 答案。"""
-    norm = {"knight": "knight", "knave": "knave", "骑士": "knight", "无赖": "knave"}
+    norm = {
+        "knight": "knight",
+        "knave": "knave",
+        "骑士": "knight",
+        "无赖": "knave",
+        "true": "knight",
+        "false": "knave",
+        "1": "knight",
+        "0": "knave",
+    }
     # 找出所有 {...} 片段，从后往前尝试解析
     for m in reversed(list(re.finditer(r"\{[^{}]*\}", text))):
         try:

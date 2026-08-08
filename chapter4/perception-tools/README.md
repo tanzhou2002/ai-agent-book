@@ -52,19 +52,27 @@ A comprehensive MCP (Model Context Protocol) server providing various perception
 
 ### Installation
 
-1. Clone the repository and navigate to the project directory:
+1. Create a clean environment for Experiment 4-1 and install its MCP v2 dependencies:
 
 ```bash
 cd chapter4/perception-tools
+python -m venv .venv
+# macOS/Linux:
+source .venv/bin/activate
+# Windows PowerShell: .venv\Scripts\Activate.ps1
+# Windows cmd: .venv\Scripts\activate.bat
+python -m pip install -r requirements.txt
+
+# Offline protocol smoke test: starts stdio, lists tools, and calls file_reader.
+python smoke_test_mcp_v2.py
 ```
 
-2. Install dependencies:
+`requirements.txt` deliberately pins `mcp>=2,<3`. Experiment 4-1 uses the
+SDK v2 `MCPServer`/`Client` API and negotiates the stateless MCP
+`2026-07-28` protocol. A shared environment that still contains MCP 1.x is
+not compatible with this experiment.
 
-```bash
-pip install -r requirements.txt
-```
-
-3. **No additional configuration required!** The server works out-of-the-box with free APIs.
+2. **No additional configuration required!** The server works out-of-the-box with free APIs.
 
 ### Configuration
 
@@ -87,9 +95,7 @@ The following features work immediately without any API keys:
 ##### Google Calendar
 For Google Calendar integration, you need to set up OAuth2:
 
-```bash
-pip install google-auth-oauthlib google-auth-httplib2 google-api-python-client
-```
+Install the Google API client/auth packages separately if you want to enable this optional integration; the base requirements keep it optional.
 
 Follow the [Google Calendar API quickstart](https://developers.google.com/calendar/api/quickstart/python) to set up OAuth2 credentials.
 
@@ -99,9 +105,7 @@ Follow the [Google Calendar API quickstart](https://developers.google.com/calend
 3. Share your databases/pages with the integration
 4. Add `NOTION_API_KEY` to `.env`
 
-```bash
-pip install notion-client
-```
+Install `notion-client` separately if you want to enable this optional integration; the base requirements keep it optional.
 
 #### Safe filesystem mutations
 
@@ -122,16 +126,22 @@ Run the five-category campaign through the real MCP stdio transport:
 
 ```bash
 python run_experiment_4_1.py
-pytest -q test_experiment_4_1.py test_filesystem_mutations.py \
+python -m pip install pytest pytest-asyncio
+python -m pytest -q test_experiment_4_1.py test_filesystem_mutations.py \
   test_real_experiment_4_1_evidence.py test_expanded_catalog.py
 ```
 
-The durable July 30, 2026 receipt is intentionally **blocked**, not passed:
+The retained July 30, 2026 receipt is **legacy evidence**: it predates SDK v2
+and did not record either the installed `mcp` version or the negotiated
+protocol version, so it is not proof of the current protocol migration. Its
+business-tool outcome is intentionally **blocked**, not passed:
 search, filesystem, and public-data categories passed; local webpage/document,
 OCR, Whisper, and video parsing also passed; image/video AI analysis received
 OpenAI `insufficient_quota`, while Calendar and Notion lacked authorization.
 Those four calls remain failed evidence and cannot satisfy the corresponding
-category gates.
+category gates. New runs record `mcp_sdk_version` and `protocol_version` in
+`catalog_receipt.json`; the catalog gate accepts only SDK 2.x negotiated to
+`2026-07-28`.
 
 ### Usage
 
@@ -471,19 +481,26 @@ This project is part of the AI Agent training camp materials.
 
 ### 安装
 
-1. 进入项目目录：
+1. 为实验 4-1 创建干净环境并安装 MCP v2 依赖：
 
 ```bash
 cd chapter4/perception-tools
+python -m venv .venv
+# macOS/Linux：
+source .venv/bin/activate
+# Windows PowerShell：.venv\Scripts\Activate.ps1
+# Windows cmd：.venv\Scripts\activate.bat
+python -m pip install -r requirements.txt
+
+# 离线协议冒烟测试：启动 stdio、列出工具并调用 file_reader
+python smoke_test_mcp_v2.py
 ```
 
-2. 安装依赖：
+`requirements.txt` 明确限定 `mcp>=2,<3`。实验 4-1 使用 SDK v2 的
+`MCPServer`/`Client` API，并协商无状态的 MCP `2026-07-28` 协议；仍安装
+MCP 1.x 的共享环境与本实验不兼容。
 
-```bash
-pip install -r requirements.txt
-```
-
-3. **无需额外配置！** 服务器默认即可用免费 API 工作。
+2. **无需额外配置！** 服务器默认即可用免费 API 工作。
 
 ### 配置
 
@@ -506,9 +523,7 @@ pip install -r requirements.txt
 ##### Google Calendar
 需要配置 OAuth2：
 
-```bash
-pip install google-auth-oauthlib google-auth-httplib2 google-api-python-client
-```
+如需启用该可选集成，请另行安装 Google API client/auth 包；基础依赖保持其可选性。
 
 按 [Google Calendar API quickstart](https://developers.google.com/calendar/api/quickstart/python) 配置凭据。
 
@@ -518,9 +533,23 @@ pip install google-auth-oauthlib google-auth-httplib2 google-api-python-client
 3. 将数据库/页面共享给该集成
 4. 在 `.env` 中加入 `NOTION_API_KEY`
 
+如需启用该可选集成，请另行安装 `notion-client`；基础依赖保持其可选性。
+
+### 精确实验 4-1 campaign
+
+通过真实 MCP stdio 传输运行五类场景：
+
 ```bash
-pip install notion-client
+python run_experiment_4_1.py
+python -m pip install pytest pytest-asyncio
+python -m pytest -q test_experiment_4_1.py test_filesystem_mutations.py \
+  test_real_experiment_4_1_evidence.py test_expanded_catalog.py
 ```
+
+保留的 2026 年 7 月 30 日收据属于旧版证据：它早于 SDK v2，且没有记录
+`mcp` 包版本或实际协商的协议版本，因此不能证明当前迁移已通过。新的运行器会在
+`catalog_receipt.json` 中同时记录 `mcp_sdk_version` 和 `protocol_version`，
+并且只有 SDK 2.x 与协议 `2026-07-28` 才能通过 catalog gate。
 
 ### 使用
 

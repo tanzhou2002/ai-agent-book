@@ -23,7 +23,7 @@ Orpheus is a text-to-speech (TTS) model that converts text into natural-sounding
 ## Installation
 
 ### Prerequisites
-- Python 3.8+
+- Python 3.10+
 - CUDA-compatible GPU (recommended: 16GB+ VRAM)
 - CUDA toolkit installed
 
@@ -32,8 +32,17 @@ Orpheus is a text-to-speech (TTS) model that converts text into natural-sounding
 **IMPORTANT**: The `datasets` package version must be between 3.4.1 and 4.0.0 for compatibility.
 
 ```bash
-pip install sentencepiece protobuf "datasets>=3.4.1,<4.0.0" "huggingface_hub>=0.34.0" hf_transfer
-pip install -r requirements.txt
+# From the repository root: use a separate project-local environment for Orpheus.
+# Its audio stack needs a torch/torchaudio pair matched to your CUDA platform,
+# so do not install it into the shared root .venv.
+cd chapter7/orpheus
+python -m venv .venv-orpheus
+source .venv-orpheus/bin/activate
+# Windows PowerShell: .\.venv-orpheus\Scripts\Activate.ps1
+# Windows cmd: .venv-orpheus\Scripts\activate.bat
+
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
 For Colab or specific environments, you may need:
@@ -67,7 +76,7 @@ python orpheus_sft_unsloth.py
 The training script will:
 1. Load the pre-trained Orpheus 3B model
 2. Apply LoRA adapters for efficient fine-tuning
-3. Train on the MrDragonFox/Elise dataset (or your custom dataset)
+3. Train on the public Elise mirror (or your custom dataset)
 4. Save the fine-tuned LoRA adapters to `lora_model/`
 
 **Training Parameters:**
@@ -166,7 +175,7 @@ The training script expects datasets with the following structure:
 - `text`: The text to be spoken
 - `audio`: Audio file with `array` and `sampling_rate` fields
 
-Example dataset: [MrDragonFox/Elise](https://huggingface.co/datasets/MrDragonFox/Elise)
+Example dataset: [maxbsoft/mrdragonfox-elise](https://huggingface.co/datasets/maxbsoft/mrdragonfox-elise). The original `MrDragonFox/Elise` repository named by the notebook is now disabled.
 
 ## Model Architecture
 
@@ -286,7 +295,17 @@ Contributions are welcome! Please feel free to submit issues or pull requests.
 需要支持 CUDA 的 GPU、Python 3.10+、PyTorch、FFmpeg，以及与本机 CUDA 环境匹配的 Unsloth 依赖。
 
 ```bash
-pip install -r requirements.txt
+# 从仓库根目录开始：Orpheus 请使用单独的项目本地环境。
+# 它的音频栈需要与本机 CUDA 平台匹配的 torch/torchaudio 组合，
+# 因此不要安装到共享的根目录 .venv 中。
+cd chapter7/orpheus
+python -m venv .venv-orpheus
+source .venv-orpheus/bin/activate
+# Windows PowerShell：.\.venv-orpheus\Scripts\Activate.ps1
+# Windows cmd：.venv-orpheus\Scripts\activate.bat
+
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
 ## 项目结构

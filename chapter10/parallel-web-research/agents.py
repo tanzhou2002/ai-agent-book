@@ -6,7 +6,7 @@ import asyncio
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from llm import extract_profile
 from message_bus import BROADCAST, MessageBus
@@ -64,13 +64,19 @@ class BrowserPool:
 
 class WorkerAgent:
     def __init__(self, worker_id: str, site: Website, bus: MessageBus, target: str,
-                 browsers: BrowserPool, timeout: float = 120):
+                 browsers: BrowserPool, timeout: float = 120,
+                 browser_receipt_sink: Optional[Callable[[dict], None]] = None,
+                 llm_receipt_sink: Optional[Callable[[dict], None]] = None,
+                 run_phase: str = "parallel"):
         self.id, self.site, self.bus, self.target = worker_id, site, bus, target
         self.browsers, self.timeout = browsers, timeout
         self.sub = bus.subscribe(worker_id, types=["task_assigned", "terminate"])
         self.terminate = asyncio.Event()
         self._termination_reason = ""
         self.context = None
+        self.browser_receipt_sink = browser_receipt_sink
+        self.llm_receipt_sink = llm_receipt_sink
+        self.run_phase = run_phase
 
     async def report(self, state: TaskState, note: str):
         await self.bus.send(self.id, "coordinator", "status_update", {
@@ -113,6 +119,14 @@ class WorkerAgent:
     async def run(self):
         assigned = await self.sub.get()
         while assigned.type != "task_assigned":
+            if assigned.type == "terminate":
+                self._termination_reason = assigned.payload.get("reason", "cascade")
+                self.terminate.set()
+                await self.report(TaskState.TERMINATED, f"安全点响应终止：{self._termination_reason}")
+                await self.bus.send(self.id, "coordinator", "ack", {
+                    "acked": "terminate", "source": self.site.name,
+                })
+                return
             assigned = await self.sub.get()
         signal_task = asyncio.create_task(self._signals())
         try:
@@ -120,18 +134,41 @@ class WorkerAgent:
             self.context = await self.browsers.new_context()
             page = await self.context.new_page()
             await self.report(TaskState.RUNNING, f"正在加载 {self.site.url}")
-            await self._navigate_interruptibly(page)
+            navigation = await self._navigate_interruptibly(page)
             if self.terminate.is_set():
                 raise asyncio.CancelledError
             await self.report(TaskState.RUNNING, "正在读取渲染后的教师页面")
             text = await self._await_interruptibly(
                 page.locator("body").inner_text(timeout=20_000)
             )
+            if self.browser_receipt_sink:
+                self.browser_receipt_sink({
+                    "kind": "rendered_browser_observation",
+                    "phase": self.run_phase,
+                    "worker_id": self.id,
+                    "site": self.site.name,
+                    "college": self.site.college,
+                    "requested_url": self.site.url,
+                    "final_url": page.url,
+                    "http_status": navigation.status if navigation else None,
+                    "rendered_body_text": text,
+                })
             if self.terminate.is_set():
                 raise asyncio.CancelledError
             await self.report(TaskState.RUNNING, "正在做证据约束的教师信息抽取")
             profile = await self._await_interruptibly(
-                extract_profile(self.target, self.site.college, self.site.url, text)
+                extract_profile(
+                    self.target,
+                    self.site.college,
+                    self.site.url,
+                    text,
+                    receipt_sink=self.llm_receipt_sink,
+                    call_context={
+                        "phase": self.run_phase,
+                        "worker_id": self.id,
+                        "site": self.site.name,
+                    },
+                )
             )
             if profile.get("found"):
                 await self.bus.send(self.id, "coordinator", "target_found", {
@@ -188,6 +225,7 @@ class Coordinator:
         self._settled = False
         self.winner: Optional[str] = None
         self.profile: Optional[dict] = None
+        self.expected_loser_acks: Optional[set[str]] = None
         self.duplicate_hits: List[str] = []
         self.acks: set[str] = set()
         self.errors: Dict[str, str] = {}
@@ -205,6 +243,15 @@ class Coordinator:
                 self.duplicate_hits.append(worker_id)
                 return
             self._settled, self.winner, self.profile = True, worker_id, profile
+            # Only workers still running when the winner settles receive the
+            # terminate broadcast and therefore owe an acknowledgement.
+            self.expected_loser_acks = {
+                worker.id
+                for worker in self.workers
+                if worker.id != worker_id
+                and worker.id not in self.not_found
+                and worker.id not in self.errors
+            }
             await self.bus.send("coordinator", BROADCAST, "terminate", {
                 "reason": f"target_found_by_{worker_id}", "winner": worker_id,
             })
@@ -245,11 +292,7 @@ class Coordinator:
         for error in self.errors.values():
             kind = error.split(":", 1)[0]
             failure_types[kind] = failure_types.get(kind, 0) + 1
-        expected_acks = {worker.id for worker in self.workers}
-        if self.winner:
-            expected_acks.discard(self.winner)
-        else:
-            expected_acks.clear()
+        expected_acks = self.expected_loser_acks or set()
         missing_acks = expected_acks - self.acks
         return {
             "outcome": "found" if self.winner else "not_found",
@@ -280,26 +323,71 @@ class Coordinator:
         }
 
 
-async def search_one(site: Website, target: str, browsers: BrowserPool, timeout: float) -> dict:
+async def search_one(
+    site: Website,
+    target: str,
+    browsers: BrowserPool,
+    timeout: float,
+    browser_receipt_sink: Optional[Callable[[dict], None]] = None,
+    llm_receipt_sink: Optional[Callable[[dict], None]] = None,
+    worker_id: str = "serial",
+    run_phase: str = "serial",
+) -> dict:
     context = await browsers.new_context()
     started = time.monotonic()
     try:
         page = await context.new_page()
-        await page.goto(site.url, wait_until="domcontentloaded", timeout=int(timeout * 1000))
+        navigation = await page.goto(site.url, wait_until="domcontentloaded", timeout=int(timeout * 1000))
         text = await page.locator("body").inner_text(timeout=20_000)
-        profile = await extract_profile(target, site.college, site.url, text)
+        if browser_receipt_sink:
+            browser_receipt_sink({
+                "kind": "rendered_browser_observation",
+                "phase": run_phase,
+                "worker_id": worker_id,
+                "site": site.name,
+                "college": site.college,
+                "requested_url": site.url,
+                "final_url": page.url,
+                "http_status": navigation.status if navigation else None,
+                "rendered_body_text": text,
+            })
+        profile = await extract_profile(
+            target,
+            site.college,
+            site.url,
+            text,
+            receipt_sink=llm_receipt_sink,
+            call_context={"phase": run_phase, "worker_id": worker_id, "site": site.name},
+        )
         return {"site": site.name, "profile": profile, "seconds": time.monotonic() - started}
     finally:
         await context.close()
         await browsers.mark_closed()
 
 
-async def run_sequential(sites: List[Website], target: str, browsers: BrowserPool, timeout: float) -> dict:
+async def run_sequential(
+    sites: List[Website],
+    target: str,
+    browsers: BrowserPool,
+    timeout: float,
+    browser_receipt_sink: Optional[Callable[[dict], None]] = None,
+    llm_receipt_sink: Optional[Callable[[dict], None]] = None,
+    run_phase: str = "serial",
+) -> dict:
     started = time.monotonic()
     results = []
     for site in sites:
         try:
-            item = await search_one(site, target, browsers, timeout)
+            item = await search_one(
+                site,
+                target,
+                browsers,
+                timeout,
+                browser_receipt_sink=browser_receipt_sink,
+                llm_receipt_sink=llm_receipt_sink,
+                worker_id=f"serial-{len(results):02d}",
+                run_phase=run_phase,
+            )
             results.append(item)
             if item["profile"].get("found"):
                 break

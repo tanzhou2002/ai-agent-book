@@ -147,6 +147,8 @@ In comparisons using the same prompt set, this mechanism produced **zero writes 
 
 The following describes a **recommended engineering workflow**. It presents an idealized application of software-engineering best practices to Coding Agents. Real-world Coding Agents (like Claude Code, OpenClaw) more often work in a reactive, iterative loop and **trim this workflow as needed**—for simple tasks they skip the design document and don't block on user approval at every step; only when a task is complex and far-reaching do they run every stage in full.
 
+Different models trim this workflow in different ways. Some Coding models read the repository structure, implementation, callers, and tests broadly before the first edit. Others inspect only the few files most likely to matter, make an early patch, and treat compiler and test feedback as part of the investigation. This threshold for deciding when to stop gathering information and start acting can continue to follow the model after the harness changes, and can change when the model is swapped inside the same harness. It is therefore first and foremost a **learned model behavior**, not merely the interface style of a Coding product. Prompts, tools, and budgets in the harness can still amplify or suppress it, but need not be its source. Experiment 6-7 measures this difference in a fixed harness; Chapter 7 then explains how post-training may write such a policy into the parameters.
+
 **Project Documentation.**
 
 A Coding Agent's work begins with a systematic understanding of the project. When an Agent first encounters a code repository, its first job is not to start modifying code but to build a cognitive framework for the whole project—just as a new engineer doesn't push code on day one, but starts by learning the lay of the land. The Agent begins by checking whether the project has documentation—a README, architecture design documents, developer guides.
@@ -461,6 +463,8 @@ def cancel_reservation(
         return {"success": False, "reason": "Cannot cancel with used segments"}
 
     hours_since_booking = (now - r.booking_time).total_seconds() / 3600
+    if hours_since_booking < 0:
+        return {"success": False, "reason": "Booking time is in the future"}
     if hours_since_booking <= 24:
         execute_cancellation(reservation_id)
         return {"success": True, "reason": "Cancelled within 24-hour window"}
@@ -649,6 +653,8 @@ Database querying is a scenario where code generation can significantly enhance 
 
 The first approach looks more "intelligent" but is grossly inefficient—a query against a large table may return thousands of rows. Having the LLM read all that and describe it in prose burns tokens and time, and worse, LLMs are notoriously error-prone when "transcribing" data. A better approach is the **Artifact pattern**. Figure 5-9 shows the workflow of an SQL query Agent: rather than reading the data itself, the Agent generates an SQL query and passes it to the system as a standalone **executable artifact**. The system executes the query against the database and renders the results in a table for the user. The data therefore flows directly from the database to the interface without passing through the LLM; the LLM writes the query but never has to read and restate thousands of rows. This approach is both faster and more accurate.
 
+Generated SQL and visualization code must not be executed directly. The execution layer should use read-only database credentials, parse the SQL, allow only approved `SELECT` statements, and reject DDL, DML, and multi-statement queries. User-provided values should be bound as server-side parameters, with limits on query time, returned rows, accessible tables, and date ranges. Visualization code should run in a sandbox isolated from the network and filesystem and should produce only an approved result format. The Artifact pattern shortens the data path; it does not replace authorization checks or execution isolation.
+
 ![Figure 5-9: SQL Query Agent Workflow](images/fig5-9.svg)
 
 
@@ -684,6 +690,22 @@ Fully dynamic generation, however, is costly and slow—better suited to demonst
 >
 > **Technical Approach**: Build a basic chatbot application (React frontend and FastAPI backend), and run both components in development mode with hot reload enabled (React HMR and FastAPI reload). Users propose UI customization requirements (colors, fonts, layout, component positions, etc.) during the conversation. The Agent autonomously modifies the code. The hot-reload mechanism automatically detects file changes, the frontend recompiles and refreshes, and the user sees the interface changes in real time. The system supports multiple rounds of iterative customization.
 >
+
+Dynamic software changes the traditional security premise along with its flexibility. In the past, application business code was developed, reviewed, tested, and deployed, then remained relatively stable for a period of time. Authorization checks therefore usually lived in the application layer: business code first decided whether the current user could read or modify a record, and only then sent the operation to the database. When interfaces, workflows, and even data-access code can be generated or rewritten by an Agent at any time, that layer is no longer stable. Newly generated code may omit a subtle authorization check, expose a field that was previously hidden, or bypass an existing check through another call path. Whether the cause is an ordinary generation error or dangerous code produced after prompt injection, the result is the same: the permission boundary that business code was supposed to maintain may be silently broken.
+
+The security goal for dynamic software therefore cannot be to “make sure the AI writes every authorization check correctly.” It should be that **permission constraints remain impossible to bypass even when the AI writes incorrect code**. If authorization checks live inside the dynamically generated business logic, they share the same trust domain as the code they are meant to constrain. Prompts, tests, and code review reduce the error rate, but they cannot exhaustively cover every execution path introduced by future generations and cannot serve as the final security boundary.
+
+A more robust architecture **moves the trust boundary down to the data layer**. Dynamically generated application code can handle presentation, workflows, and business orchestration, while a stable, human-reviewed mechanism enforces the rules that decide who may do what to which data. Database row-level security can restrict users to records in their own tenant; constraints and validators can reject illegal states; controlled views, stored procedures, or data-access services can expose only approved operations. Every read and write should also carry an **access context** bound by a trusted runtime, containing the user, tenant, role, or Agent identity. Generated code receives only this scoped identity: it cannot forge the identity or obtain a privileged database credential that bypasses the rules. Even if it omits its own authorization check, the data layer still rejects the unauthorized operation.
+
+Moving authorization downward does not mean putting all business logic in the database. The application layer may still perform pre-checks to provide fast feedback, but the data layer must retain final decision authority. The same rule can improve the experience above and provide a guarantee below. That guarantee also requires every data-access path to pass through the trusted data layer; generated code must not be able to connect directly around it. The result is an application whose upper layer can keep changing while its non-negotiable permission constraints remain in a layer that is not rewritten on every generation.
+
+> **Experiment 5-12 ★★★: Permission-Embedded Data Objects for Dynamic Software**
+>
+> **Experiment Goal**: Build an object store that allows application code to be generated or rewritten dynamically while still enforcing authorization and data integrity at the data layer. Verify that generated code cannot cross the stable data boundary by skipping a state-machine transition, writing an out-of-range value, or reading across tenants.
+>
+> **Technical Approach**: Use the implementation from the `PermissionEmbeddedDataObjects` project to provide a Python object-store middleware layer over PostgreSQL. Data types declare their permission rules, access context, validators, object relationships, and reactions. Each read or write passes through permission and validation checks, persistence and referential-integrity handling, and controlled asynchronous reactions. First run the deterministic hiring-pipeline demo without an LLM; optionally ask models to generate adversarial operations against raw SQL and the PEDO API, then compare the resulting database states. The key comparison is not whether a generated handler contains the right `if` statement, but whether the same request is reliably accepted or rejected when it reaches the stable data layer.
+>
+> **Acceptance Criteria**: A valid hiring-pipeline update succeeds; skipping a candidate state transition, writing a salary outside the position range, and reading across tenants are all rejected by the data layer. Core permission, validation, tenant-isolation, referential-integrity, and reaction tests pass. The implementation is included in the Chapter 5 companion project under `permission-embedded-data-objects`.
 
 ### Code Creating Code: Agent Bootstrapping
 
@@ -722,7 +744,7 @@ The advantage of example-based generation is plain: the example code itself carr
 
 When an Agent receives a task to develop a new Agent, it should first copy its own code (or other validated, high-quality implementations) and then make targeted modifications: adjust the system prompt to match the new role, replace or add tools to suit new functions, modify business logic while preserving the architectural framework. This "self-replication with adaptive modification" pattern ensures the new Agent inherits core technical advantages while allowing differentiation in specific dimensions—much like gene replication with mutation in biology.
 
-> **Experiment 5-12 ★★★: Develop an Agent That Can Create Agents**
+> **Experiment 5-13 ★★★: Develop an Agent That Can Create Agents**
 >
 > **Experiment Goal**: Build a Coding Agent with metaprogramming capabilities—the ability to write programs that generate or modify other programs—so that it can automatically create new Agent systems from user requirements while adhering to best practices.
 >

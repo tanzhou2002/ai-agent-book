@@ -54,6 +54,7 @@ def strategy_acceptance_passes(result):
 
 def _backends():
     from openai import OpenAI
+    from .agent import _to_openrouter_model
     options = {"timeout": float(os.getenv("WEREWOLF_LLM_TIMEOUT", "45")), "max_retries": 1}
     out = []
     if os.getenv("ARK_API_KEY"):
@@ -62,6 +63,13 @@ def _backends():
         out.append((OpenAI(api_key=os.environ["MOONSHOT_API_KEY"], base_url="https://api.moonshot.cn/v1", **options), os.getenv("MOONSHOT_MODEL", "kimi-k3"), "moonshot"))
     if os.getenv("OPENAI_API_KEY"):
         out.append((OpenAI(api_key=os.environ["OPENAI_API_KEY"], base_url=os.getenv("OPENAI_BASE_URL") or None, **options), os.getenv("OPENAI_MODEL", "gpt-4.1-mini"), "openai"))
+    if os.getenv("OPENROUTER_API_KEY"):
+        model = _to_openrouter_model(os.getenv("OPENAI_MODEL", "gpt-5.6-luna"))
+        out.append((OpenAI(
+            api_key=os.environ["OPENROUTER_API_KEY"],
+            base_url="https://openrouter.ai/api/v1",
+            **options,
+        ), model, "openrouter"))
     return out
 
 
@@ -87,6 +95,7 @@ def evaluate_strategy(judge):
         ),
     }
     last = None
+    attempts = []
     for client, model, provider in _backends():
         try:
             kwargs = dict(
@@ -97,11 +106,44 @@ def evaluate_strategy(judge):
             if "kimi-k3" in model:
                 kwargs.update(temperature=1, max_tokens=4096)
             response = client.chat.completions.create(**kwargs)
-            result = json.loads(response.choices[0].message.content or "{}")
+            content = response.choices[0].message.content or "{}"
+            raw_result = json.loads(content)
+            # Validation annotates its input. Keep a distinct credential-free raw
+            # result in the attempt record so attaching attempts to the accepted
+            # result cannot create a self-referential JSON structure.
+            result = json.loads(content)
             result["provider"] = provider
             result["model"] = model
-            return validate_strategy_result(result)
+            checked = validate_strategy_result(result)
+            usage = getattr(response, "usage", None)
+            usage = usage.model_dump() if hasattr(usage, "model_dump") else usage
+            attempts.append({
+                "provider": provider,
+                "model": model,
+                "response_id": getattr(response, "id", None),
+                "provider_reported_model": getattr(response, "model", None),
+                "usage": usage,
+                "schema_valid": checked["schema_valid"],
+                "validation_errors": checked["validation_errors"],
+                "raw_result": raw_result,
+            })
+            if checked["schema_valid"]:
+                checked["judge_attempts"] = attempts
+                return checked
+            last = ValueError(
+                f"{provider} strategy judge returned an invalid schema: "
+                + "; ".join(checked["validation_errors"])
+            )
+            print(f"[策略审计] {provider} 模式无效，尝试下一端点")
         except Exception as exc:
             last = exc
+            attempts.append({
+                "provider": provider,
+                "model": model,
+                "error_type": type(exc).__name__,
+                "error": str(exc)[:500],
+            })
             print(f"[策略审计] {provider} 失败：{type(exc).__name__}，尝试下一端点")
-    raise RuntimeError("没有可用的真实 LLM 端点完成策略验收") from last
+    failure = RuntimeError("没有可用的真实 LLM 端点完成有效的策略验收")
+    failure.judge_attempts = attempts
+    raise failure from last

@@ -2,11 +2,13 @@
 
 # CoT Distillation: Collecting SFT Data from Frontier Cloud Models
 
-This experiment builds a small, auditable pipeline for collecting chain-of-thought supervised fine-tuning data from teacher models. It supports OpenAI-compatible endpoints, Anthropic, and OpenRouter, validates generated answers, and writes accepted samples as JSONL.
+This experiment implements all three manuscript stages: auditable collection of
+verified teacher trajectories, a real student parameter-update run, and a
+paired baseline/student/teacher evaluation with explicit completion gates.
 
 ## Method
 
-The pipeline loads problems, asks a selected teacher model to produce worked solutions, extracts the final answer, and keeps only samples that pass answer validation. The output can then be used as SFT data for a smaller student model.
+The pipeline loads problems, asks a selected teacher model to produce worked solutions, extracts the final answer, and keeps only samples that pass answer validation. `train_student.py` then masks prompt tokens and trains only on the teacher assistant trajectory; it emits a real checkpoint and a content-hashed training manifest. `evaluate_student.py` runs the baseline and trained student on the same problems, reuses the saved real teacher trajectories, computes an exact paired sign test, and audits reflection/backtracking/verification behavior.
 
 ## Choosing a teacher model
 
@@ -15,7 +17,23 @@ The default does not have to be a closed-source model. A strong open model serve
 ## Run
 
 ```bash
-pip install -r requirements.txt
+# From the repository root: use the shared Chapter 7 environment
+uv sync --locked --python 3.12 --extra ch7
+
+# Activate it before changing directories:
+# macOS/Linux:
+source .venv/bin/activate
+# Windows PowerShell: .\.venv\Scripts\Activate.ps1
+# Windows cmd: .venv\Scripts\activate.bat
+
+# pip fallback when uv is not installed:
+# python -m pip install -e ".[ch7]"
+
+cd chapter7/cot-distillation
+
+# Single-project compatibility path, still supported during migration:
+# python -m pip install -r requirements.txt
+
 cp env.example .env
 
 # Small smoke test with two problems
@@ -26,6 +44,15 @@ python collect.py
 
 # Inspect dataset statistics
 python stats.py output/sft_data.jsonl
+
+# Real parameter update (CUDA; no mock/CPU success fallback)
+python train_student.py --preflight
+python train_student.py --train-data data/sft_cot_distill_aime_kimi_k3.jsonl \
+  --output-dir checkpoints/cot-student
+
+# Same-problem baseline/student/teacher comparison
+python evaluate_student.py --student-model checkpoints/cot-student \
+  --teacher-data data/raw_trajectories_aime_kimi_k3.jsonl
 ```
 
 Provider, model, concurrency, retry, and output settings can be configured through command-line arguments and environment variables. See `python collect.py --help` for the complete list.
@@ -55,7 +82,7 @@ SFT 数据最高效的方式就是**蒸馏前沿模型**：通过大规模 API �
 
 ## 方法
 
-三步流程（对应实验 7-9 的第一步"采集轨迹"）：
+三步流程（完整对应实验 7-9，而非只停在采集轨迹）：
 
 1. **采样任务**：`problems.jsonl` 内置 24 道 AIME 真题（1986–2024 年，按题号
    难度分层抽样：P1–5/P6–10/P11–15 各 8 道，已剔除含图形的题），答案是
@@ -70,6 +97,13 @@ SFT 数据最高效的方式就是**蒸馏前沿模型**：通过大规模 API �
 3. **验证过滤**：用规则验证器核对 `Final Answer` 数值，只保留答对的轨迹，
    写成 `问题 → <think>思考</think> + 最终答案` 的 messages 格式 SFT 数据。
    错误的思考过程会被学生一并模仿，所以这一步不能省。
+4. **学生 SFT**：`train_student.py` 对提示 token 做 loss mask，只在教师的
+   `<think>…</think> + 最终答案` 上回传梯度；真实 CUDA 训练后写出 checkpoint、
+   数据 SHA、基模、GPU、超参数和训练指标。脚本没有 mock 或 CPU 假成功路径。
+5. **同集对照验收**：`evaluate_student.py` 在同一批题上运行未训练基线与学生，
+   并复用保存的真实 API 教师轨迹；报告三臂准确率、配对胜负、精确双侧检验、
+   教师能力恢复比例，以及反思/回溯/验算行为。只有学生显著优于基线且这些
+   行为在真实输出中出现时，机器可读结果才标为 `complete`。
 
 ## 教师模型怎么选：默认开源 SOTA，不必盯着闭源
 
@@ -89,8 +123,24 @@ summarized thinking 和开源模型的原始思维链，作为 SFT 数据到底�
 ## 运行
 
 ```bash
-pip install -r requirements.txt
-export OPENROUTER_API_KEY=sk-or-...
+# 在仓库根目录使用统一的第 7 章环境
+uv sync --locked --python 3.12 --extra ch7
+
+# 切换目录前先激活环境：
+# macOS/Linux：
+source .venv/bin/activate
+# Windows PowerShell：.\.venv\Scripts\Activate.ps1
+# Windows cmd：.venv\Scripts\activate.bat
+
+# 未安装 uv 时可用 pip 兜底：
+# python -m pip install -e ".[ch7]"
+
+cd chapter7/cot-distillation
+
+# 迁移期间仍支持单项目兼容路径：
+# python -m pip install -r requirements.txt
+
+export OPENROUTER_API_KEY=your-openrouter-api-key
 
 # 小规模冒烟（2 道题）
 python generate_data.py --max_problems 2 \
@@ -101,6 +151,20 @@ python generate_data.py
 
 # 数据统计
 python analyze_data.py
+
+# 第二步：真实学生参数训练（需要 CUDA）
+python train_student.py --preflight
+python train_student.py \
+  --train-data data/sft_cot_distill_aime_kimi_k3.jsonl \
+  --base-model Qwen/Qwen2.5-1.5B-Instruct \
+  --output-dir checkpoints/cot-student
+
+# 第三步：基线 / 学生 / 教师同题对照
+python evaluate_student.py \
+  --baseline-model Qwen/Qwen2.5-1.5B-Instruct \
+  --student-model checkpoints/cot-student \
+  --teacher-data data/raw_trajectories_aime_kimi_k3.jsonl \
+  --output validation/experiment_7_9.json
 ```
 
 常用参数：`--model` 换教师模型、`--base_url`/`--api_key_env` 换端点、
@@ -117,6 +181,20 @@ python analyze_data.py
 | `data/sft_cot_distill_aime_kimi_k3.jsonl` | Kimi K3 的 SFT 训练数据 |
 | `data/raw_trajectories_*.jsonl` | 全部原始轨迹（含未通过验证的），用于分析教师错误模式 |
 | `data/*_zh*.jsonl` | 中文简单题（`problems_zh.jsonl`）的归档采集结果 |
+| `train_student.py` | 真实 SFT 参数更新；提示 token mask、LoRA/全参训练和训练 manifest |
+| `evaluate_student.py` | 同题三臂评测、配对显著性与教师式行为验收 |
+
+当前仓库保存了 24/24 Kimi K3 AIME 完整轨迹。规则验证器接受其中 23 条进入 SFT；
+`aime-2016-9-I` 在原生 low-reasoning 控制下完成，但答案错误，因此被正确拒绝。
+第二步与第三步已在 RTX PRO 6000 Blackwell Workstation Edition 上完成
+真实 CUDA 训练：[`student_sft_preflight_20260801_gpu.json`](validation/student_sft_preflight_20260801_gpu.json)
+证明训练栈可用；[`training_manifest.json`](checkpoints/exp7-9-qwen25-1.5b-kimi-k3-20260801-v1/training_manifest.json)
+记录了 Qwen2.5-1.5B-Instruct + LoRA 的真实参数更新（3 epochs，约 27 秒，最终 loss
+2.17）；[`experiment_7_9_complete_20260803_v2.json`](validation/experiment_7_9_complete_20260803_v2.json)
+给出同题三臂对照：基线 1/24、学生 2/24、教师 23/24，配对检验 p=1.0 不显著，能力
+恢复比例约 4.5%。学生输出中确实出现了少量反思/验算行为，但总体与基线接近。
+实验执行与证据状态为 **complete**；配对提升不显著是本次实验的负结果，而不是缺失门禁。
+若要检验更强的蒸馏效果，下一轮应扩大已验证训练集后重新训练，而不是把负结果改写成成功。
 
 ## AIME 实测：三位教师的对照（24 题）
 

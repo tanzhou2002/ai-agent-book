@@ -64,6 +64,33 @@ Ca sử dụng này đã thành công. Nhưng một đánh giá tốt không ch�
 
 Quy trình trên - xác định các trường hợp kiểm thử, chạy Agent, chấm điểm bằng Rubric và phân tích kết quả - là khung cơ bản của đánh giá. Chương này sẽ dần dần mở rộng phương pháp thiết kế của từng liên kết.
 
+## Hệ thống chỉ số đánh giá: tiêu chí cập nhật
+
+Trước khi xây dựng môi trường hay tập dữ liệu, cần định nghĩa “thành công”: tìm được một đường đi khả thi một lần có đủ không, hay mọi lần chạy đều phải đúng? Cách định nghĩa khác nhau có thể đảo ngược quyết định kỹ thuật.
+
+### Kỳ quan kỹ thuật: trần năng lực với Pass@k
+
+Nhiều mô hình và Agent vẫn ở giai đoạn **kỳ quan kỹ thuật**: sau nhiều lần thử, ngân sách thời gian lớn và chọn lọc của con người, một trajectory đột phá chứng minh nhiệm vụ có thể làm được về nguyên tắc. Đó là logic của **Pass@k**: chạy cùng nhiệm vụ $k$ lần và đạt nếu ít nhất một lần thành công; với điểm liên tục, giữ lần tốt nhất là **Best@k**. Các Agent chạy dài của Anthropic, Manus và OpenClaw minh họa trần năng lực này, hữu ích cho khám phá khoa học, tìm lỗ hổng và sáng tạo mở.
+
+### Độ tin cậy nghiệp vụ: Pass^k
+
+Hệ thống nghiệp vụ thường yêu cầu điều ngược lại: không mắc lỗi trong các lần chạy liên tiếp. **Pass^k** (“Pass consecutive k”) yêu cầu cả $k$ lần liên tiếp đều đạt và không kích hoạt veto về an toàn, tuân thủ hay ảo giác. Nếu xác suất thành công một lần là $p$ thì
+
+$$
+\mathrm{Pass@k}=1-(1-p)^k,\qquad
+\mathrm{Pass}^{k}=p^k.
+$$
+
+Với $p=0.6$, $k=5$, Pass@5 khoảng 99,0% nhưng Pass consecutive@5 chỉ 7,8%. Chỉ số đầu đo trần khám phá; chỉ số sau gần với độ tin cậy cần cho thanh toán, hoàn tiền, đổi quyền và triển khai sản xuất. Báo cáo phải nói rõ $k$ là mẫu độc lập hay tác vụ sản xuất liên tiếp; thao tác có tác dụng phụ phải thử trong sandbox hoặc môi trường có thể hoàn tác và tính mọi thất bại.
+
+### Chỉ số quy trình, an toàn và độ bền
+
+Kết quả cuối không đủ. Tỷ lệ thao tác hợp lệ/được phép, tính đúng ngữ nghĩa của lời gọi công cụ, hiệu quả đường đi (bước, thao tác thừa, quay lui), độ bao phủ truy xuất, chi phí và độ trễ cho biết Agent hỏng ở đâu. Thao tác nhạy cảm, rò rỉ dữ liệu và nội dung bị cấm tuân theo **không khoan nhượng**. Độ bền bao gồm seed, thay đổi UI, chập chờn API và nhiễu từ bộ nhớ cũ; phải kiểm tra cả **trajectory** lẫn **outcome** thực của hệ thống.
+
+### Lấy mẫu thủ công và đánh giá đối kháng
+
+Định kỳ kiểm tra thủ công ca thành công, thất bại và điểm biên. Trước khi dùng LLM judge ở quy mô lớn, hiệu chỉnh trên gold set 100–200 ca do người gán nhãn (ví dụ Cohen kappa > 0,7) và hiệu chỉnh lại khi judge hoặc Rubric thay đổi. Red teaming tìm lỗi ẩn, nhồi từ khóa và cách khai thác thiên lệch của judge; bất đồng lớn giữa các judge phải chuyển cho người xem xét.
+
 ## Tự động đánh giá môi trường
 
 Đánh giá Agent yêu cầu một môi trường tự động có thể chạy nhiều lần - một môi trường có thể nhanh chóng kiểm tra tác động của những thay đổi trong giai đoạn phát triển. Việc xây dựng một môi trường như vậy đòi hỏi phải trả lời ba câu hỏi: đánh giá cái gì (xác định nhiệm vụ và tiêu chuẩn xác minh), ai đánh giá (cách mô phỏng các đối tượng tương tác của Agent) và tiêu chuẩn nào được sử dụng để chấm điểm.
@@ -340,13 +367,13 @@ thất bại: "Thông tin bịa đặt không tồn tại trong cuộc trò chuy
 
 **Rubric Tốt so với Rubric Xấu**: Mỗi hộp xếp hạng ở trên đưa ra một hành vi cụ thể có thể kiểm chứng ("Tiến sĩ Chen đã trả lời chính xác"), thay vì "thể hiện sự hiểu biết sâu sắc về trí nhớ" và các mô tả khác không thể đánh giá khách quan. Mục từ chối làm rõ điểm mấu chốt: ngay cả khi tất cả các chiều không gian khác đều là điểm đầy đủ, một khi ảo giác xảy ra, nó sẽ bị tính trực tiếp bằng 0.
 
-Gửi câu trả lời thực tế của Rubric và Agent đến mô hình đánh giá và mô hình đánh giá sẽ chấm điểm theo thứ nguyên và đưa ra lý do. Bằng cách chạy trên hàng chục trường hợp thử nghiệm, những thiếu sót về khả năng của Agent có thể được phát hiện một cách có hệ thống - ví dụ: điểm trung bình của thứ nguyên "liên kết giữa các phiên" chỉ là 2,1, điều này rõ ràng cho thấy sự thiếu truy xuất bộ nhớ hoặc liên kết thông tin.
+Đưa Rubric cùng câu trả lời thực tế của Agent cho mô hình đánh giá để nhận điểm và lý do theo từng tiêu chí. Khi tổng hợp hàng chục ca rồi xem lại các trajectory có điểm thấp, ta có thể biến một nhận xét mơ hồ như “tỷ lệ thành công giảm” thành chẩn đoán cụ thể: không truy xuất được dữ kiện, nối sai quan hệ giữa các nhân vật, hay tự thêm thông tin không có căn cứ. Rubric vì thế không chỉ cho biết hệ thống đạt bao nhiêu điểm, mà còn chỉ ra nên sửa ở đâu.
 
 > **Thử nghiệm 6-3 ★★: Xây dựng hệ thống đánh giá bộ nhớ người dùng dựa trên Rubric**
 >
-> **Điều kiện tiên quyết**: Cần phải hoàn thành Thử nghiệm bộ nhớ người dùng Chương 3 (`ch3/user-memory-evaluation`).
+> **Điều kiện tiên quyết**: Cần phải hoàn thành Thử nghiệm bộ nhớ người dùng Chương 3 (`chapter3/user-memory-evaluation`).
 >
-> Thử nghiệm này yêu cầu chuyển đổi khung `ch3/user-memory-evaluation` trong Chương 3 và nâng cấp cơ chế tính điểm hiện tại dựa trên LLM-as-a-Judge đơn giản thành hệ thống đánh giá Rubric đa chiều có cấu trúc. Hệ thống hiện tại sử dụng một lệnh gọi LLM duy nhất để trả về đạt/không đạt cùng với lý do đánh giá và thiếu khả năng chẩn đoán có cấu trúc.
+> Thử nghiệm này yêu cầu chuyển đổi khung `chapter3/user-memory-evaluation` trong Chương 3 và nâng cấp cơ chế tính điểm hiện tại dựa trên LLM-as-a-Judge đơn giản thành hệ thống đánh giá Rubric đa chiều có cấu trúc. Hệ thống hiện tại sử dụng một lệnh gọi LLM duy nhất để trả về đạt/không đạt cùng với lý do đánh giá và thiếu khả năng chẩn đoán có cấu trúc.
 >
 > Thiết kế khung Rubric đa chiều thống nhất phù hợp cho tất cả các nhiệm vụ ba cấp. Các khía cạnh đánh giá bao gồm: tính chính xác về mặt thực tế (Độ chính xác - bao nhiêu thông tin được cung cấp là chính xác) để xác minh xem số/ngày/tên có nhất quán với thông tin được ghi nhớ hay không; tính đầy đủ thực tế (Nhớ lại - bao nhiêu thông tin cần cung cấp được thu hồi (tối đa) xác minh rằng tất cả thông tin liên quan đã được cung cấp và không thiếu nội dung chính; tính đúng đắn của tư duy kiểm tra xem các mối quan hệ và logic tiềm ẩn giữa thông tin có được hiểu chính xác hay không; chủ động suy nghĩ đánh giá xem các đề xuất hoặc lời nhắc rủi ro ngoài câu trả lời trực tiếp có được đưa ra khi thích hợp hay không; phát hiện ảo giác đảm bảo rằng thông tin không tồn tại trong bộ nhớ không bị giả mạo.
 >
@@ -354,12 +381,28 @@ Gửi câu trả lời thực tế của Rubric và Agent đến mô hình đán
 >
 > **Thử nghiệm 6-4 ★★: Đánh giá so sánh giữa Thẻ JSON nâng cao và RAG**
 >
-> **Điều kiện tiên quyết**: Cần phải hoàn thành Chương 3 Bộ nhớ người dùng và Thử nghiệm RAG (`ch3/user-memory`, `ch3/agentic-rag-for-user-memory`).
+> **Điều kiện tiên quyết**: Cần phải hoàn thành Chương 3 Bộ nhớ người dùng và Thử nghiệm RAG (`chapter3/user-memory`, `chapter3/agentic-rag-for-user-memory`).
 >
-> **Mục tiêu**: So sánh công bằng các ưu điểm của bộ nhớ có cấu trúc và truy xuất phi cấu trúc trên cùng một bộ đánh giá. Sử dụng lại hai dự án trong Chương 3, ba cấu hình được so sánh trên 60 trường hợp thử nghiệm của `ch3/user-memory-evaluation` - Thẻ JSON nâng cao thuần túy (ngữ cảnh lưu trữ thẻ có cấu trúc, không cần truy xuất), RAG thuần túy (đoạn hội thoại được chia thành thư viện vectơ, phải được truy xuất), hệ thống kết hợp (cư trú thực tế cốt lõi + truy xuất hội thoại gốc theo yêu cầu).
+> **Mục tiêu**: So sánh công bằng phạm vi hiệu quả của bộ nhớ có cấu trúc và truy xuất phi cấu trúc trên cùng một bộ đánh giá. Tái sử dụng hai dự án ở Chương 3 và so sánh ba cấu hình trên 60 ca của `chapter3/user-memory-evaluation`: chỉ dùng Advanced JSON Cards, chỉ dùng RAG, và cấu hình kết hợp giữ các dữ kiện cốt lõi trong context còn hội thoại gốc được truy xuất khi cần.
 >
 > **Chấp nhận**: Ghi lại tỷ lệ thành công, số bước trung bình, số lần gọi công cụ, độ trễ và chi phí ở ba mức độ phức tạp (thu hồi cơ bản / phân biệt nhiều phiên / liên kết ẩn giữa các phiên) và làm rõ ranh giới lỗi của từng giải pháp - điều gì bị mất trong cấu trúc, điều gì bị bỏ sót khi truy xuất và liệu có sự phối hợp thực sự trong quá trình trộn hay không. Xem kho lưu trữ hỗ trợ để biết chi tiết cấu hình và trường hợp thử nghiệm.
 >
+
+Thử nghiệm đi kèm dùng cùng 60 câu hỏi cho ba hệ thống và lưu lại 180 trajectory gọi API thực. Bảng 6-4 ghi cả số câu thành công bên cạnh tỷ lệ tổng thể để kích thước mẫu không bị che khuất.
+
+Bảng 6-4 Tỷ lệ thành công theo độ khó của ba hệ thống bộ nhớ
+
+| Hệ thống | Nhớ lại cơ bản | Phân giải nhiều phiên | Liên hệ ẩn giữa các phiên | Tổng thể |
+|---|---:|---:|---:|---:|
+| Advanced JSON Cards | 95% | 60% | 50% | 68.3% (41/60) |
+| RAG | 90% | 40% | 15% | 48.3% (29/60) |
+| Kết hợp | 80% | 70% | 50% | 66.7% (40/60) |
+
+Điểm đáng chú ý nhất là kết hợp hai cách không tự động tạo ra kết quả tốt hơn. Hệ thống kết hợp giải được 3 câu mà cả hai hệ thống đơn lẻ đều trượt, nhưng ở 8 câu khác lại kém hơn hệ thống đơn lẻ tốt nhất. So với phương án đơn lẻ tốt nhất cho từng câu, reward trung bình của nó thấp hơn 0.092. RAG gần ngang thẻ có cấu trúc ở phần nhớ lại cơ bản, nhưng chỉ đạt 15% với liên hệ giữa các phiên. Tìm được đoạn hội thoại liên quan mới là bước đầu; Agent còn phải ghép đúng người, thời gian và sự kiện.
+
+Một con số khác dễ bị bỏ qua: điều kiện phủ quyết do hallucination đã kích hoạt 28 lần trong 180 lượt chấm. Đây không phải chi tiết trang trí trong Rubric mà thực sự làm thay đổi kết quả. Khi xây hệ thống, không nên mặc định “có cấu trúc + RAG” sẽ cộng hưởng. Hãy xem từng cách thất bại ở mỗi mức độ khó rồi mới quyết định dữ kiện nào thường trú và câu hỏi nào kích hoạt truy xuất. Kết quả này đến từ ca tổng hợp và một cấu hình model/judge duy nhất; nó giúp hiểu cơ chế thành công và thất bại, chứ không tạo ra bảng xếp hạng phổ quát.
+
+Các kết luận trên còn giả định mô hình đánh giá đủ đáng tin. Nếu Agent và judge cùng một họ model, chúng có thể chia sẻ sở thích và điểm mù. Phần tiếp theo bàn về vấn đề này.
 
 **Các vấn đề về mô hình tương đồng và đánh giá đa nguồn.**
 
@@ -382,16 +425,32 @@ Policy giảm nhẹ là **đánh giá không đồng nhất nhiều nguồn** - 
 - **Đánh giá giao diện người dùng**: Sử dụng cơ chế **Người đề xuất-Người đánh giá**(Proposer-Reviewer) để kiểm tra các vấn đề như tràn văn bản, độ tương phản màu, vị trí nút, v.v. Ở đây, người đề xuất-người đánh giá được sử dụng làm phương pháp đánh giá, khác với cách sử dụng làm thành phần hệ thống tạo trong Chương 5, nhưng cơ chế cốt lõi giống nhau - một mô hình được tạo và một mô hình khác được xem xét độc lập.
 - **Đánh giá video clip**: Xác minh điểm bắt đầu và điểm kết thúc chính xác của clip cũng như việc áp dụng các hiệu ứng đặc biệt thông qua các khung hình chính.
 
-> **Thử nghiệm 6-5 ★★: Xây dựng quy trình đánh giá chất lượng TTS hoàn toàn tự động**
+### Quy trách nhiệm thất bại và hồi quy theo tiền tố trajectory
+
+Đánh giá end-to-end thường chỉ trả lời “đạt” hoặc “không đạt”. Để kết quả dẫn tới sửa chữa, với mỗi trajectory thất bại hãy ghi loại lỗi, bước đầu tiên không chấp nhận được, lời gọi công cụ hoặc đầu ra mô hình liên quan và bằng chứng có thể kiểm tra. Tín hiệu bad case gồm người dùng sửa trực tiếp, phản hồi tiêu cực hoặc kiểm tra trạng thái/quy tắc sau đó. LLM có thể hỗ trợ nhưng vẫn cần người đọc vì nguyên nhân thường là vấn đề sản phẩm.
+
+Với Coding Agent, các nhóm ban đầu là thiếu quy trình/quy tắc kho, lỗi công cụ/định dạng, kết thúc bất thường và lỗi logic/độ hoàn tất. Lưu bản ghi JSON/YAML có số bước, công cụ, quan sát, nguyên nhân gốc so với hậu quả, khả năng khôi phục và độ tin cậy, cùng trạng thái, phiên bản và trajectory đầy đủ.
+
+**Hồi quy end-to-end** chạy toàn bộ quy trình; **hồi quy trajectory-prefix** đóng băng ngữ cảnh, hội thoại, kết quả công cụ và trạng thái ngay trước lỗi đầu tiên rồi chỉ kiểm tra hành động quan sát được tiếp theo. Định nghĩa tập hành động được chấp nhận (đọc quy tắc, hỏi người dùng, từ chối thao tác nguy hiểm) và hành động cấm thay vì một đáp án duy nhất; tách dữ liệu đánh giá khỏi dữ liệu huấn luyện.
+
+> **Thử nghiệm 6-5 ★★: Đánh giá ranh giới trajectory-prefix với nhiều mã hóa**
+>
+> Cung cấp bộ nhớ người dùng đã biết, chỉ dẫn hiện tại, trajectory prefix, kết quả công cụ và trạng thái môi trường; mô hình chỉ trả về hành động quan sát được kế tiếp. 11 ca được mã hóa bằng JSON Cards, Markdown và Python-like rồi kiểm tra bằng quy tắc xác định. 33/33 ô hoàn tất không lỗi API, mỗi cách mã hóa đạt 6/11; đổi biểu diễn không tự sửa được chính sách sử dụng.
+
+> **Thử nghiệm 6-6 ★★: Xây dựng quy trình đánh giá chất lượng TTS hoàn toàn tự động**
 >
 > Thử nghiệm này yêu cầu thiết kế và triển khai hệ thống đánh giá chất lượng LLM-as-a-Judge TTS đa phương thức hoàn chỉnh ngay từ đầu.
 >
 > Thiết kế TTS đa chiều Rubric: Chiều chính xác xác minh xem tất cả các từ có được đọc chính xác hay không (không thiếu sót/đọc sai/thêm), chiều tự nhiên đánh giá xem lời nói có mượt mà hay không (có cảm giác máy móc, ngắt quãng không tự nhiên và nhịp điệu có phù hợp với thói quen của con người hay không), chiều biểu hiện cảm xúc kiểm tra xem giọng điệu có phù hợp với màu sắc cảm xúc của văn bản hay không (giọng lên của câu nghi vấn, nhấn mạnh) về câu cảm thán, tốc độ nói chậm và âm trầm của nội dung buồn) và chiều nhất quán âm sắc đánh giá độ giống nhau của người nói khi có giọng tham chiếu (mô hình đa phương thức đồng thời nhận cả giọng tham chiếu và so sánh giọng tổng hợp).
 >
-> Xây dựng kho ngữ liệu kiểm tra đa dạng: độ dài khác nhau (câu đơn → đoạn văn dài), phong cách (tin tức/câu chuyện/đàm thoại), cảm xúc (trung tính/vui mừng/buồn), thử thách đặc biệt (con số/danh từ riêng/đa âm/từ vựng phương ngữ). Triển khai quy trình đánh giá: Mô-đun tạo TTS được kết nối với các dịch vụ chính thống (OpenAI, ElevenLabs, Fish Audio, Minimax, Beanbao) và mô-đun đánh giá đa phương thức sử dụng Gemini 3.5 Flash để nhập giọng nói tổng hợp, văn bản gốc, lời nói tham chiếu và Rubric cùng nhau, chấm điểm chúng theo thứ nguyên và đưa ra lý do chi tiết. Phân tích sự phân bổ kết quả đánh giá và xác định ưu điểm, nhược điểm của các mô hình TTS khác nhau theo từng chiều - một số mô hình có thể có độ chính xác tuyệt vời nhưng không đủ độ tự nhiên, trong khi một số mô hình khác có thể có độ tự nhiên cao nhưng dễ mắc lỗi về từ vựng đặc biệt.
+> Xây dựng kho ngữ liệu đa dạng về độ dài, thể loại, cảm xúc, con số, tên riêng, cách phát âm dễ nhầm và phương ngữ. Mô-đun TTS có thể kết nối OpenAI, ElevenLabs, Fish Audio, Minimax hoặc Doubao. Một judge đa phương thức nhận trực tiếp audio sẽ đánh giá đồng thời giọng tổng hợp, văn bản gốc, audio tham chiếu và Rubric. Ngoài phân tích điểm theo từng chiều, cần lưu tên model đánh giá cùng hash của audio tham chiếu và từng ứng viên để có thể kiểm tra lại kết quả.
 >
 
-Ngoài việc xác định Rubric theo cách thủ công, một **mô hình phần thưởng tổng hợp** chuyên biệt cũng có thể được đào tạo để tự động hóa phán đoán - điều này liên quan đến phương pháp đào tạo của mô hình phần thưởng, sẽ được thảo luận chi tiết trong Chương 7.
+Kho đi kèm lưu một pilot nghe trực tiếp quy mô nhỏ. OpenAI và Fish Audio mỗi bên tạo bốn mẫu—số, từ dễ đọc nhầm, câu dài và giọng hào hứng—rồi Voxtral chấm cả tám audio theo bốn chiều trên. Hai bên cùng đạt 5.00 về độ chính xác và 4.00 về độ tự nhiên. Fish Audio đạt 4.00 về biểu cảm và 3.00 về độ nhất quán giọng; OpenAI lần lượt là 3.75 và 2.75. Tách các chiều giúp thấy khác biệt về giọng điệu và âm sắc ngay cả khi khả năng đọc đúng văn bản ngang nhau.
+
+Tám mẫu chưa đủ để kết luận dịch vụ nào tốt hơn. Mỗi bên chỉ có bốn mẫu, và quan trọng hơn, audio tham chiếu cố định được tạo bởi Fish S1 nên phép so độ giống giọng vốn đã có lợi cho Fish Audio. Nếu so TTS phổ thông, không nên đưa tiêu chí “giống giọng tham chiếu Fish” vào tổng điểm. Nếu so voice cloning, mọi hệ thống phải bắt chước cùng một người nói và điểm của model cần được hiệu chỉnh bằng nghe mù của con người. **Việc chọn câu trả lời, hình ảnh hay audio tham chiếu là một phần của thiết kế đánh giá, không phải bước chuẩn bị trung tính trước thí nghiệm.**
+
+Rubric viết tay phù hợp để nhanh chóng tạo các chiều chẩn đoán này. Khi quy mô tăng, có thể huấn luyện **mô hình phần thưởng sinh** để tự động hóa việc chấm; Chương 7 trình bày phương pháp huấn luyện.
 
 Trong việc lựa chọn mô hình thực tế, câu hỏi chúng ta thường gặp là: "Cái nào tốt hơn, A hay B?" So sánh từng cặp cung cấp một cách đánh giá không dựa vào điểm số tuyệt đối.
 
@@ -407,7 +466,7 @@ Khi LLM hoàn thành phán quyết ghép đôi thay vì con người bỏ phiế
 
 **Từ đánh giá đến đào tạo: chuyển các tín hiệu so sánh theo cặp**. So sánh cặp không chỉ là phương pháp đánh giá mà còn là nguồn tín hiệu quan trọng cho quá trình huấn luyện sau. Thuật toán **GRPO**(Tối ưu hóa chính sách tương đối nhóm) sẽ được giới thiệu trong Chương 7, giới thiệu phương pháp đánh giá "so sánh cái nào tốt hơn" vào đào tạo mô hình - ý tưởng cốt lõi của nó là lấy mẫu nhiều câu trả lời của ứng viên cho cùng một câu hỏi và sử dụng giá trị tương đối (thay vì điểm tuyệt đối) giữa chúng để ước tính lợi thế, từ đó loại bỏ rắc rối khi đào tạo mạng giá trị bổ sung (quan trọng, dùng để ước tính đường cơ sở) trong PPO - lưu ý GRPO loại bỏ mạng giá trị thay vì chính tín hiệu phần thưởng. Nó vẫn dựa vào mô hình khen thưởng hoặc các quy tắc khen thưởng có thể kiểm chứng được để đánh giá chất lượng của từng ứng viên. Đây chỉ là một điềm báo. Việc dẫn xuất thuật toán hoàn chỉnh, so sánh với PPO/DPO và chi tiết triển khai trong quá trình post-training của Agent còn lại ở Chương 7.
 
-> **Thử nghiệm 6-6 ★★: Xây dựng thứ hạng mô hình từ dữ liệu so sánh theo cặp**
+> **Thử nghiệm 6-7 ★★: Xây dựng thứ hạng mô hình từ dữ liệu so sánh theo cặp**
 >
 > Thử nghiệm này triển khai hệ thống tính toán xếp hạng Elo từ đầu để hiểu sâu hơn về cách mô hình Bradley-Terry trích xuất xếp hạng khả năng tương đối từ một số lượng lớn so sánh theo cặp. Sử dụng tập dữ liệu bỏ phiếu trong thế giới thực mã nguồn mở của Chatbot Arena gồm hàng triệu phiếu bầu của người dùng mù.
 >
@@ -441,6 +500,24 @@ Xung quanh hai giai đoạn này, các chỉ số thông lượng và độ tr�
 
 Trong thực tế, chiến lược cộng tác đa mô hình có thể được áp dụng: sử dụng các mô hình gọn nhẹ để xử lý các yêu cầu đơn giản nhằm giảm chi phí và sử dụng các mô hình mạnh mẽ để xử lý các tác vụ phức tạp nhằm đảm bảo chất lượng; hoặc sử dụng các mô hình chuyên biệt để xử lý các nhiệm vụ con cụ thể (chẳng hạn như hiểu hình ảnh, tạo mã) và cộng tác thông qua cơ chế sub-Agent. Sự kết hợp không đồng nhất này cần được xác minh thông qua đánh giá để xác nhận xem lợi ích tổng thể có lớn hơn độ phức tạp ngày càng tăng của hệ thống hay không.
 
+### Hành vi mô hình: Khi nào ngừng đọc và bắt đầu chỉnh sửa
+
+Việc chọn mô hình không chỉ so sánh liệu mô hình có hoàn thành được nhiệm vụ hay không, mà còn so sánh **hành vi mặc định của nó**. Một khác biệt dễ quan sát ở Coding Agent là ngưỡng hành động. Với cùng một nhiệm vụ lập trình, một số mô hình khám phá rộng kho mã và xác nhận kiến trúc, các điểm gọi và kiểm thử trước khi chỉnh sửa. Những mô hình khác định vị thay đổi từ ít bằng chứng hơn, chỉnh sửa sớm rồi dùng phản hồi kiểm thử để hoàn thiện hiểu biết. Nhóm đầu đánh giá chi phí của việc sửa quá sớm cao hơn; nhóm sau đánh giá chi phí cơ hội của việc đọc thêm một tệp cao hơn.
+
+Khi một xu hướng vẫn đi theo mô hình qua các Harness và thay đổi khi chỉ thay mô hình trong một Harness cố định, lời giải thích chính phải là **hành vi mô hình**. Post-training là một nguồn có khả năng cao: các quỹ đạo SFT minh họa cần đọc đến đâu trước khi hành động, phần thưởng quá trình củng cố hoặc phạt những đường đi công cụ cụ thể, còn phần thưởng kết quả củng cố toàn bộ chiến lược đã dẫn đến thành công. Do đó, mô hình không chỉ học cách viết mã mà còn học khi nào đã có đủ bằng chứng. Dataset và công thức phần thưởng chính xác thường là thông tin riêng; phép thay mô hình có kiểm soát có thể xác định hành vi nằm phía mô hình nhưng không tiết lộ công thức huấn luyện cụ thể của nhà cung cấp. Harness vẫn có thể dịch chuyển ngưỡng bằng system prompt, mô tả công cụ và ngân sách, nhưng nếu không ép buộc quy trình thì nên xem nó là yếu tố điều chỉnh, không phải nguyên nhân gốc mặc định.
+
+Thí nghiệm đi kèm so sánh `openai/gpt-5.6-sol` và `anthropic/claude-sonnet-5` trong một **Harness trung lập và cố định**. Cả hai dùng cùng endpoint OpenRouter và nhận cùng system prompt, nhiệm vụ, kho mã, tên công cụ, JSON Schema và kết quả công cụ. Harness không bắt buộc khám phá hay chỉnh sửa sớm. Ba kho mã thu nhỏ bao phủ một lỗi cục bộ, chuẩn hóa định danh xuyên mô-đun và sửa bộ nhớ đệm nhạy với hợp đồng công khai. Mỗi mô hình chạy độc lập từng nhiệm vụ ba lần, tạo 18 quỹ đạo. Trước lần chỉnh sửa đầu tiên, GPT-5.6-sol gọi công cụ trung bình 6,89 lần và đọc 4,67 tệp; Claude Sonnet 5 đạt 4,56 lần và 3,56 tệp. Chênh lệch lớn nhất ở nhiệm vụ cục bộ và gần như biến mất ở nhiệm vụ xuyên mô-đun được nêu rõ (7,00 so với 6,67 tệp). Cả hai mô hình đều đạt 100% ở bản vá đầu tiên được kiểm thử và kiểm thử cuối. Vì thế, thí nghiệm nhỏ này ủng hộ kết luận “chính sách hành động thay đổi theo mô hình”, chứ không phải “đọc nhiều hơn” hay “sửa sớm hơn” luôn tốt hơn. Thời gian tới lần chỉnh sửa đầu tiên cũng gần như bằng nhau (15,01 so với 14,48 giây), nhắc chúng ta phải tách số bước công cụ, lời gọi song song và độ trễ mô hình.
+
+> **Thí nghiệm 6-8 ★★: Đo ngưỡng hành động của mô hình trong một Coding Harness cố định**
+>
+> **Mục tiêu**: cô lập yếu tố mô hình, định lượng cách các mô hình Coding mặc định cân bằng giữa tiếp tục thu thập thông tin và bắt đầu chỉnh sửa, đồng thời đánh giá hiệu quả đường đi cùng chất lượng kết quả.
+>
+> **Phương pháp**: chạy `chapter6/model-action-threshold/experiment.py`. Theo mặc định, chương trình gọi GPT-5.6-sol và Claude Sonnet 5 qua cùng endpoint OpenRouter OpenAI-compatible, đồng thời giữ cố định system prompt, schema công cụ, kho mã nhiệm vụ, lệnh kiểm thử và giới hạn lượt. Prompt trung lập không quy định số tệp tối thiểu phải đọc hay yêu cầu chỉnh sửa nhanh. Lặp lại mỗi loại trong ba loại nhiệm vụ ít nhất ba lần và luân phiên thứ tự mô hình. Ghi số lời gọi công cụ, tệp đã đọc, lượt tìm kiếm và thời gian thực trước lần chỉnh sửa đầu tiên, cùng tỷ lệ chấp nhận bản vá đầu tiên được kiểm thử, số lần làm lại sau kiểm thử, thành công cuối, số tệp thay đổi và mức dùng Token.
+>
+> **Diễn giải nhân quả**: chiến dịch trung lập hỏi hành vi có thay đổi theo mô hình trong cùng một Harness hay không. Để đo Harness như yếu tố điều chỉnh, hãy chạy một chiến dịch riêng với `--policy explore-first`; không trộn hai policy trong cùng phép so sánh mô hình. Hành vi thay đổi khi đổi mô hình và vẫn giữ nguyên với cùng mô hình qua nhiều Harness là bằng chứng mạnh hơn cho hiệu ứng mô hình; chiều ngược lại ủng hộ hiệu ứng Harness mạnh hơn.
+>
+> **Tiêu chí nghiệm thu**: mọi unit test offline đều qua; trước tiên phải xác nhận mỗi fixture nhiệm vụ ở trạng thái ban đầu làm kiểm thử thất bại; kết quả chính thức chứa đủ các ô `mô hình × nhiệm vụ × lần lặp`, không có lỗi API, có kiểm thử cuối độc lập và quỹ đạo kiểm toán được; `manifest.json` xác minh hash của cấu hình, quan sát và bản tổng hợp. Thư mục dự án lưu một lần chạy thực tế hoàn chỉnh 18/18 ô. Người đọc nên chạy lại trên phiên bản mô hình và workload thực tế mà mình quan tâm, thay vì coi các số liệu của kho mã nhỏ này là bảng xếp hạng vĩnh viễn.
+
 ### Phân tích chi phí của hệ thống Agent
 
 Chi phí là một khía cạnh dễ bị đánh giá thấp trong việc lựa chọn mô hình. Nếu Agent của bạn đã bước vào môi trường sản xuất hoặc đang chuẩn bị bước vào môi trường sản xuất thì không nên bỏ qua phần phân tích chi phí trong phần này.
@@ -457,24 +534,24 @@ Chi phí của hệ thống Agent có thể được chia thành ba cấp độ:
 
 **Chi phí cơ sở hạ tầng** bao gồm chi phí vận hành như cơ sở dữ liệu vectơ (để truy xuất RAG), hàng đợi tin nhắn, cơ sở dữ liệu quan hệ, lưu trữ nhật ký và theo dõi (để có thể quan sát).
 
-Sử dụng một ví dụ cụ thể để minh họa sự tăng trưởng phi tuyến tính trong chi phí. Bảng 6-4 lấy khoản hoàn trả dịch vụ khách hàng Agent ở đầu chương này làm ví dụ, sử dụng một tập hợp các tham số giá mã thông báo mẫu để chia nhỏ chi phí của ba vòng lệnh gọi nhằm minh họa tác động của nhiều vòng tích lũy ngữ cảnh và lượt truy cập bộ nhớ đệm lên chi phí.
+Để thấy chi phí thực sự phát sinh ở đâu, thí nghiệm đi kèm sử dụng một quy trình hoàn tiền cố định gồm tám lượt: tra cứu đơn hàng, vận chuyển, chính sách hoàn tiền và kho tri thức, sau đó kiểm tra rủi ro, hoàn tiền, thông báo cho khách và đóng vụ việc. Các lệnh gọi gpt-4o-mini thực được chạy với bốn tổ hợp của hai công tắc: tiền tố ổn định hoặc không ổn định, lịch sử đầy đủ hoặc đã nén. Nghiệp vụ ở bốn nhóm hoàn toàn giống nhau; chi phí trong Bảng 6-5 được tính từ lượng token và bảng giá lưu cùng lần chạy.
 
-Bảng 6-4 Ví dụ về chi phí hoàn tiền ba vòng cho dịch vụ khách hàng Agent
+Bảng 6-5 Chi phí đo được của quy trình Agent tám lượt
 
-| Vòng | Hoạt động | Mã thông báo đầu vào | Mã thông báo đầu ra | Chi phí của vòng này |
-|------|------|-----------|-----------|---------|
-| 1 | Lời nhắc của hệ thống + câu hỏi của người dùng → Quyết định truy vấn đơn hàng | 2.500 (2.000 trong số đó là lời nhắc của hệ thống) | 150 | 0,0098 USD |
-| 2 | Tất cả từ vòng cuối cùng + trả lại công cụ → Quyết định bắt đầu hoàn tiền | 3.200 (2.000 lần truy cập bộ đệm) | 120 | 0,0060 USD |
-| 3 | Tất cả vòng cuối cùng + kết quả hoàn tiền → Trả lời người dùng | 3.800 (bộ nhớ đệm 3.200 lượt truy cập) | 200 | 0,0058 USD |
-|**Tổng cộng**| |**9.500**|**470**|**$0,022**|
+| Cấu hình | Token đầu vào | Token được cache | Tổng chi phí | Tiết kiệm so với đường cơ sở |
+|---|---:|---:|---:|---:|
+| Không cache, không nén | 20,700 | 0 | $0.003776 | — |
+| Chỉ dùng tiền tố ổn định | 20,386 | 13,568 | $0.002707 | 28.3% |
+| Chỉ nén lịch sử | 16,177 | 0 | $0.003115 | 17.5% |
+| Tiền tố ổn định + nén | 16,035 | 6,144 | $0.002643 | 30.0% |
 
-Lưu ý: Được tính toán dựa trên giá ví dụ của việc nhập mã thông báo $3/triệu mã thông báo, đầu ra $15/triệu, lần truy cập vào bộ nhớ đệm được giả định là được tính phí ở mức 10% giá trị đầu vào (mức chiết khấu khác tùy theo nhà sản xuất, ví dụ: ghi vào bộ nhớ đệm của Anthropic khoảng 1,25 lần giá trị đầu vào và đọc khoảng 0,1 lần, ở đây được đơn giản hóa để chỉ tính chiết khấu đọc).
+Ở nhóm cơ sở, đầu vào tăng từ 1,113 token ở lượt đầu lên 3,668 token ở lượt cuối. Kết quả công cụ bị mang lặp lại vào các yêu cầu sau, chiếm tổng cộng 9,544 token đầu vào. Khi bật cả hai biện pháp, con số này giảm còn 5,248 và tổng chi phí giảm 30%.
 
-Tổng số ba vòng cuộc gọi là $0,022 – Có vẻ như một món hời. Nếu không có bộ nhớ đệm, ba vòng đầu vào có giá khoảng 0,029 USD sau đó. Nhưng hãy chú ý đến một số yếu tố khuếch đại: nếu chế độ tư duy được bật, 500-2.000 mã thông báo tư duy bổ sung sẽ được tạo trong mỗi vòng và chi phí có thể cao hơn 3-5 lần; nếu một công cụ ở một vòng nào đó trả về nội dung trang web 5.000 mã thông báo, những mã thông báo này sẽ phải được thanh toán cho mỗi vòng tiếp theo; Nếu Agent đi đường vòng và mất 10 vòng mới hoàn thành. Vì vậy, cốt lõi của công việc tối ưu hóa chi phí không phải là lựa chọn mô hình giá rẻ mà phải kiểm soát số vòng và kiểm soát sự tăng trưởng ngữ cảnh.
+Các mức tiết kiệm không cộng tuyến tính. Tiền tố ổn định riêng lẻ tiết kiệm 28.3%, nén lịch sử riêng lẻ tiết kiệm 17.5%, nhưng kết hợp chỉ tiết kiệm 30%, không phải 45.8%. Nén lịch sử đồng thời làm ngắn phần tiền tố có thể tái sử dụng cache. Vì vậy, **khi kết hợp nhiều cách tối ưu ngữ cảnh, phải đo trên toàn bộ quy trình; không được cộng các tỷ lệ tiết kiệm riêng lẻ.** Nếu đổi mô hình, bảng giá hoặc độ dài nhiệm vụ, con số 30% cũng sẽ đổi. Điều có thể tái sử dụng là thiết kế bốn nhóm đối chứng, không phải chính tỷ lệ đó.
 
 **Policy tối ưu hóa chi phí.**
 
-Từ góc độ định lượng, ba loại đòn bẩy tác động ở phía đầu vào là hiệu quả nhất: **Tái sử dụng KV Cache**(giữ tiền tố ổn định, cho phép các system prompt lặp lại, định nghĩa công cụ và vòng lịch sử được tính phí ở mức giá bộ nhớ đệm, có thể giảm 30%-60% chi phí mã thông báo đầu vào - trong ví dụ ba vòng trên, bộ nhớ đệm tiết kiệm gần một nửa chi phí đầu vào), **Nén ngữ cảnh**(nén trajectory lịch sử, cắt bớt các kết quả trả về công cụ dư thừa, trực tiếp kiểm soát tốc độ tăng trưởng của ngữ cảnh, tác động đặc biệt đáng kể trong các tác vụ dài), **Định tuyến phân cấp mô hình**(chuyển các yêu cầu đơn giản cho các mô hình nhẹ, tư duy phức tạp cho các mô hình mạnh mẽ). Việc triển khai cụ thể ba loại phương tiện này - thiết kế ổn định tiền tố, thời gian và chiến lược nén, và cơ chế định tuyến - đã được thảo luận chi tiết trong Chương 2 và sẽ không được thảo luận ở đây. Chương này bổ sung thêm hai phương pháp duy nhất cho các quan điểm đánh giá và vận hành.
+Ba đòn bẩy phía đầu vào nên được thử trước là **tái sử dụng KV Cache** (giữ tiền tố ổn định), **nén ngữ cảnh** (rút gọn trajectory cũ và kết quả công cụ dài) và **định tuyến mô hình theo tầng** (giao yêu cầu đơn giản cho mô hình nhẹ, suy luận khó cho mô hình mạnh). Chương 2 đã trình bày cách triển khai. Điểm quan trọng ở góc độ vận hành là mỗi biện pháp cần có công tắc riêng, để nhóm đo được cả tác động độc lập lẫn tương tác khi kết hợp. Ngoài ra còn hai cách gắn trực tiếp với đánh giá và vận hành.
 
 **Xử lý hàng loạt không đồng bộ** Tích lũy các tác vụ không theo thời gian thực để xử lý hàng loạt và tận dụng chiết khấu giá hàng loạt của nhà cung cấp API; trong các tình huống tự triển khai, nó cũng có thể cải thiện việc sử dụng GPU trong thời kỳ khó khăn.
 
@@ -482,13 +559,13 @@ Từ góc độ định lượng, ba loại đòn bẩy tác động ở phía �
 
 Cần thiết lập hệ thống giám sát chi phí theo thời gian thực trong môi trường sản xuất: theo dõi mức tiêu thụ mã thông báo và chi phí API theo loại nhiệm vụ, mô hình, người dùng và các thứ nguyên khác. Đồng thời, đặt giới hạn chi phí cho từng nhiệm vụ - tự động chấm dứt khi Agent rơi vào vòng lặp hoặc khám phá quá sâu để ngăn một nhiệm vụ đơn lẻ phát sinh chi phí cao bất thường.
 
-> **Thử nghiệm 6-7 ★: Phân tích chi phí toàn diện của các nhiệm vụ Agent**
+> **Thử nghiệm 6-9 ★: Phân tích chi phí toàn diện của các nhiệm vụ Agent**
 >
-> **Mục tiêu thử nghiệm**: Loại bỏ chi phí liên kết đầy đủ của tác vụ Agent điển hình, thiết lập đường cơ sở chi phí và xác minh tác động của chiến lược tối ưu hóa.
+> **Mục tiêu thử nghiệm**: Tái hiện phân tích chi phí của quy trình tám lượt ở trên, sau đó kiểm tra cùng các biện pháp tối ưu trên khối lượng công việc thực tế của bạn.
 >
-> **Giải pháp kỹ thuật**: Chọn một số tác vụ điển hình và sử dụng LangSmith hoặc hệ thống theo dõi tự xây dựng để ghi lại số lượng mã thông báo đầu vào/đầu ra, số lượng mã thông báo suy nghĩ, số lượng lệnh gọi công cụ và kích thước trả về cũng như độ trễ từ đầu đến cuối cho mỗi lệnh gọi LLM. Tính toán chi phí trung bình, phân bổ chi phí (p50/p95/p99) và tỷ lệ cơ cấu chi phí của từng loại công việc.
+> **Giải pháp kỹ thuật**: Trước hết tái hiện nhiệm vụ cố định trong kho đi kèm, rồi chọn thêm một số nhiệm vụ đại diện của riêng bạn. Dùng LangSmith hoặc hệ thống theo dõi tự xây dựng để ghi token đầu vào/đầu ra và token suy nghĩ, số lần gọi công cụ và kích thước kết quả, cùng độ trễ đầu cuối của từng lệnh gọi LLM. Tính chi phí trung bình, p50/p95/p99 và cơ cấu chi phí theo loại nhiệm vụ.
 >
-> **Tiêu chí chấp nhận**: Tạo báo cáo chi tiết chi phí để xác định các yếu tố thúc đẩy chi phí chính. So sánh sự khác biệt về chi phí khi bật/tắt KV Cache, bật/tắt tính năng nén ngữ cảnh.
+> **Tiêu chí chấp nhận**: Tạo báo cáo chi tiết và xác định các nguồn chi phí chính. Chạy đủ bốn tổ hợp công tắc, đo từng biện pháp riêng và cả hai cùng lúc. Khi đổi mô hình, phải chạy lại thay vì dùng lại tỷ lệ tiết kiệm của trajectory đã lưu.
 >
 >
 
@@ -500,7 +577,7 @@ Giả sử rằng hệ thống Agent của bạn hiện được xây dựng tr�
 
 Các nhóm có hệ thống đánh giá được thiết lập tốt có thể đưa ra câu trả lời trong vài giờ: chạy mô hình mới trên bộ dữ liệu đánh giá của riêng họ và so sánh tỷ lệ thành công của nhiệm vụ, độ chính xác của lệnh gọi công cụ, độ trễ và chi phí. Bạn có thể thấy rằng mô hình mới thực sự tốt hơn và rẻ hơn đối với các tác vụ đơn giản, nhưng trong các tình huống cốt lõi liên quan đến việc điều phối công cụ nhiều vòng phức tạp, tỷ lệ thành công giảm 5%. Sau khi xác nhận rằng sự khác biệt này vượt quá băng thông nhiễu (xem "Đánh giá ý nghĩa thống kê của kết quả" bên dưới), quyết định của bạn trở thành chiến lược khác biệt hóa "chuyển sang mô hình mới cho các nhiệm vụ đơn giản để giảm chi phí và giữ lại mô hình ban đầu cho các nhiệm vụ phức tạp để đảm bảo chất lượng" thay vì mù quáng chuyển đổi toàn bộ. Kiểu ra quyết định dựa trên dữ liệu tinh tế này chỉ có thể thực hiện được nếu hệ thống đánh giá được xây dựng trước.
 
-> **Thử nghiệm 6-8 ★★: Điểm chuẩn hiệu suất mô hình đa chiều**
+> **Thử nghiệm 6-10 ★★: Điểm chuẩn hiệu suất mô hình đa chiều**
 >
 > Tiến hành kiểm tra điểm chuẩn toàn diện trên LLM chính thống và các nhà cung cấp API khác nhau, đồng thời thiết lập cơ sở dữ liệu ra quyết định lựa chọn mô hình đa chiều.
 >
@@ -510,11 +587,11 @@ Các nhóm có hệ thống đánh giá được thiết lập tốt có thể �
 >
 > Đánh giá tính khả dụng và độ ổn định của API: Thăm dò mỗi giờ trong một tuần và ghi lại tỷ lệ thành công, loại lỗi và thời gian lỗi. Tính toán tỷ lệ thất bại, MTTR (Thời gian trung bình để khôi phục) và thời gian khả dụng liên tục tối đa. Kiểm tra ngưỡng thực tế của giới hạn tốc độ - tìm điểm điều tiết bằng cách tăng dần độ đồng thời và ghi lại giới hạn trên RPM/TPM. Tính toán chi phí toàn diện: Thu thập thông tin về giá (đơn giá của mã thông báo đầu vào/đầu ra/bộ đệm), xem xét tác động của KV Cache và tính chi phí trung bình của các nhiệm vụ Agent nhiều vòng điển hình.
 >
-> **Thử nghiệm 6-9 ★★: Đánh giá lựa chọn toàn diện hệ thống bộ nhớ người dùng**
+> **Thử nghiệm 6-11 ★★: Đánh giá lựa chọn toàn diện hệ thống bộ nhớ người dùng**
 >
 > **Điều kiện tiên quyết**: Bạn cần phải hoàn thành thử nghiệm RAG Truy xuất ngữ cảnh hoặc Thông minh hóa Chương 3.
 >
-> **Mục tiêu**: Tiến hành đánh giá lựa chọn liên kết đầy đủ để truy xuất bộ nhớ người dùng Agent và xem ba điểm lựa chọn của mô hình nhúng, trình sắp xếp lại và mô hình chính Agent cùng ảnh hưởng như thế nào đến chất lượng truy xuất, độ trễ và chi phí. Sử dụng lại `ch3/contextual-retrieval-for-user-memory` hoặc `ch3/agentic-rag-for-user-memory` và so sánh trên 60 trường hợp thử nghiệm.
+> **Mục tiêu**: Tiến hành đánh giá lựa chọn liên kết đầy đủ để truy xuất bộ nhớ người dùng Agent và xem ba điểm lựa chọn của mô hình nhúng, trình sắp xếp lại và mô hình chính Agent cùng ảnh hưởng như thế nào đến chất lượng truy xuất, độ trễ và chi phí. Sử dụng lại `chapter3/contextual-retrieval-for-user-memory` hoặc `chapter3/agentic-rag-for-user-memory` và so sánh trên 60 trường hợp thử nghiệm.
 >
 > **Chấp nhận**: Quét ba điểm lựa chọn tương ứng - mô hình được nhúng (BGE-M3 / OpenAI / Beanbao, v.v., ghi lại độ chính xác, độ trễ, chi phí khi truy xuất top-5), trình xếp hạng lại (bao gồm đường cơ sở "không có trình xếp hạng lại" để định lượng giá trị cận biên của nó), mô hình chính (tỷ lệ thành công cụ thể và hiệu quả sử dụng công cụ trong cùng một cấu hình truy xuất). Điều quan trọng là đọc ra sự phối hợp giữa các thành phần: phần nhúng mạnh hơn có thể làm cho trình sắp xếp lại trở nên dư thừa và mô hình chính mạnh hơn có thể bù đắp cho việc thiếu khả năng truy xuất - lựa chọn là sự đánh đổi có hệ thống, không phải là lựa chọn từng cái một của mạnh nhất. Xem kho hỗ trợ để biết chi tiết cấu hình.
 >
@@ -525,11 +602,11 @@ Các nhóm có hệ thống đánh giá được thiết lập tốt có thể �
 
 Một công cụ để ước tính đại khái băng thông nhiễu là sai số chuẩn của phân bố nhị thức (sai số chuẩn, được sử dụng để mô tả phạm vi dao động của tỷ lệ thành công do lấy mẫu ngẫu nhiên. Giá trị càng lớn thì tỷ lệ thành công càng kém tin cậy). Nếu tỷ lệ thành công p được đo trên n trường hợp thử nghiệm thì sai số chuẩn sẽ xấp xỉ √(p(1-p)/n). Để đưa ra một ví dụ cụ thể: 100 trường hợp sử dụng, tỷ lệ thành công 70%, sai số chuẩn ≈ √(0,7×0.3/100) ≈ 4,6%. Theo trực quan, khoảng tin cậy 95% (phạm vi trong đó tỷ lệ thành công thực sự chắc chắn giảm khoảng 95%) là khoảng p ± 2 sai số chuẩn, hoặc 70% ± 9 điểm phần trăm. Nghĩa là, chênh lệch 3 điểm phần trăm như "mô hình mới 73% so với mô hình cũ 70%" nằm trong phạm vi băng thông nhiễu - khi so sánh hai tỷ lệ thành công như thể chúng độc lập với nhau, sai số chuẩn của chênh lệch là khoảng hệ số √2 (ở đây là khoảng 6,5%). Nhưng cần nhấn mạnh rằng √2 này là thuật toán cho "hai phép đo độc lập với nhau". Trong chiến đấu thực tế, hai cấu hình thường chạy trên cùng một loạt nhiệm vụ và các mẫu không độc lập - giả định về tính độc lập chỉ là giới hạn trên bảo thủ, được sử dụng để nhanh chóng đánh giá rằng "sự khác biệt này không đáng để xem xét nghiêm túc". Theo cách tính bảo thủ này, chênh lệch điểm số 3% nhỏ hơn nhiều so với mức độ ồn 6,5%. Theo đó, việc chuyển đổi mô hình không khác nhiều so với việc tung đồng xu.
 
-Có thêm một lớp không xác định trong đánh giá Agent: kết quả từ hai lần chạy của cùng một mô hình, cùng một tập dữ liệu, cũng có thể bị lệch - lấy mẫu nhiệt độ, dao động trong việc trả lại công cụ và thời gian môi trường, tất cả đều dẫn đến tính ngẫu nhiên. Do đó, số lần chạy không nên được sử dụng làm cơ sở để đưa ra quyết định mà phải được tính trung bình trên nhiều lần chạy (chẳng hạn như số lần chạy 3-5 cho mỗi cấu hình), đồng thời phải báo cáo phạm vi dao động và giá trị trung bình cùng một lúc. Trong các ví dụ giả định bên dưới, mỗi cấu hình được "chạy 5 lần (với các hạt giống ngẫu nhiên khác nhau)" vì lý do này.
+Có thêm một lớp bất định trong đánh giá Agent: cùng mô hình và cùng tập dữ liệu vẫn có thể cho kết quả khác nhau giữa các lần chạy, do lấy mẫu, biến động của kết quả công cụ và thời điểm của môi trường. Vì vậy, một lần chạy không đủ để quyết định triển khai. Hãy **chạy lặp và lấy trung bình** — chẳng hạn 3-5 lần cho mỗi cấu hình — đồng thời báo cáo cả giá trị trung bình lẫn độ phân tán. Thử nghiệm AndroidWorld nhỏ ở phần sau chỉ có một lần chạy ghép cặp cho mỗi nhiệm vụ; nó chỉ giúp sàng lọc ý tưởng đáng thử ở quy mô lớn hơn. Quyết định triển khai vẫn cần một đợt chạy nhiều seed trên toàn bộ tập nhiệm vụ.
 
 Một nguyên tắc thực tế được rút ra từ điều này: **Khi chênh lệch điểm nhỏ hơn băng thông nhiễu, không có quyết định chuyển đổi nào được đưa ra**. Nhưng trước khi “không chuyển đổi”, trước tiên bạn nên chuyển sang phương pháp phân tích nhạy cảm và chính xác hơn. Khi so sánh hai cấu hình trên cùng một loạt nhiệm vụ, phương pháp mặc định đúng là **phân tích cặp**: so sánh kết quả của hai vấn đề theo từng câu hỏi, chỉ xem xét các trường hợp sử dụng đó với các kết quả khác nhau (một đúng và một sai) và sử dụng các ý tưởng như thử nghiệm của McNemar để xác định xem sự khác biệt có đáng kể hay không. Phân tích theo cặp loại trừ nguồn nhiễu phổ biến là "độ khó của chính câu hỏi", do đó, nó nhạy hơn nhiều so với "trừ hai tỷ lệ thành công độc lập" với cùng cỡ mẫu - ước tính √2 trước đó dựa trên giả định về tính độc lập chỉ là một sàng lọc thận trọng không yêu cầu truy cập Internet, chỉ cần tính toán bằng miệng và được sử dụng để nhanh chóng loại bỏ sự khác biệt về điểm số rõ ràng là ngoài tầm với. Nếu phân tích ghép đôi vẫn cho thấy sự khác biệt là không chắc chắn thì hãy xem xét mở rộng mẫu: sai số chuẩn giảm theo √n và băng thông nhiễu chỉ giảm một nửa khi mở rộng mẫu từ 100 lên 400. Chi phí mở rộng mẫu rất cao. Mặt khác, nếu bản thân lợi ích dự kiến của việc cải tiến chỉ là điểm phần trăm 2-3 và bộ đánh giá chỉ có vài chục trường hợp sử dụng thì bộ đánh giá này không thể cho biết liệu cải tiến đó có hiệu quả hay không - ưu tiên tại thời điểm này là mở rộng bộ đánh giá thay vì tiếp tục lặp lại Agent.
 
-Có một cạm bẫy khác dễ bị bỏ qua: **Nhiều so sánh**. Khi bạn xác minh song song một loạt giả thuyết, xác suất "ít nhất một kết luận là dương tính giả" sẽ nhanh chóng tích lũy theo số lượng giả thuyết - ngay cả khi mỗi kết luận riêng lẻ sử dụng mức độ tin cậy 95% và nếu 6 giả thuyết được xem xét cùng lúc thì xác suất có ít nhất một kết luận dương tính giả là 1 − 0,95^6 ≈ 26%. Bạn càng chạy nhiều giả thuyết song song thì càng khó tránh khỏi sự trùng hợp rằng "một giả thuyết luôn có vẻ quan trọng". Có hai loại biện pháp đối phó: hoặc thắt chặt ngưỡng tin cậy của một kết luận duy nhất cho các kịch bản có nhiều giả thuyết (như kiểu Bonferroni thắt chặt ngưỡng ý nghĩa dựa trên số lượng giả thuyết) hoặc tiến hành xác minh độc lập chạy lại kết luận khẳng định và chỉ chấp nhận nếu nó được lặp lại. Phần “Từ dữ liệu đến giả thuyết” sau đây sẽ xác minh song song bốn giả thuyết H1-H4 (H5 và H6 được bắt đầu có điều kiện và không được chạy cùng lúc với bốn giả thuyết đầu tiên), đây là một kịch bản điển hình của cái bẫy này.
+Có một cạm bẫy khác dễ bị bỏ qua: **so sánh nhiều giả thuyết**. Nếu kiểm tra sáu giả thuyết độc lập với ngưỡng tin cậy 95%, xác suất xuất hiện ít nhất một kết quả dương tính giả là 1 − 0,95^6 ≈ 26%. Càng thử nhiều thay đổi, càng dễ có một thay đổi “trông như hiệu quả” chỉ do ngẫu nhiên. Có hai cách xử lý: siết ngưỡng ý nghĩa theo số phép thử, chẳng hạn hiệu chỉnh Bonferroni, hoặc chạy xác nhận độc lập và chỉ chấp nhận kết luận có thể lặp lại. Chuỗi AndroidWorld ở phần sau giảm rủi ro này bằng cách chỉ đổi một biến mỗi vòng; nếu sàng lọc nhiều hướng song song, vẫn phải hiệu chỉnh hoặc xác nhận lại độc lập.
 
 Các quyết định dựa trên đánh giá dựa trên dữ liệu chất lượng cao thu được từ việc ghi lại có hệ thống các hoạt động Agent—đây chính là giải pháp mà observability có thể giải quyết được.
 
@@ -564,7 +641,7 @@ Với một hệ thống đánh giá hoàn chỉnh và bộ dữ liệu sẵn c�
 
 ## Từ báo cáo Điểm chuẩn đến cải tiến hệ thống
 
-**Sau đây là trường hợp giả định giảng dạy**, sử dụng dữ liệu cụ thể để minh họa toàn bộ quá trình ra quyết định từ báo cáo Điểm chuẩn đến cải tiến hệ thống. Dữ liệu mang tính giả thuyết và nhằm mục đích chứng minh phương pháp luận hơn là báo cáo kết quả thử nghiệm thực tế.
+Trường hợp sau lấy từ một vòng lặp AndroidWorld có thật nhưng được thu hẹp có chủ đích trong kho đi kèm. Thử nghiệm gồm bốn nhiệm vụ cài đặt Wi-Fi trên trình giả lập API 35, mỗi nhiệm vụ có một cặp chạy đối chứng–thử nghiệm. Đây không phải toàn bộ benchmark 116 nhiệm vụ và cũng không thay thế việc chạy lại trong môi trường tham chiếu API 33. Giá trị của nó nằm ở chuỗi quyết định nối từ kết quả này sang kết quả kế tiếp, không phải ở một điểm số tổng quát.
 
 ![Hình 6-7 Điểm chuẩn cho vòng kín cải tiến ](images/fig6-7.svg)
 
@@ -574,61 +651,51 @@ Trước khi bắt đầu phân tích báo cáo Điểm chuẩn, có một nguy�
 
 ### Hiểu báo cáo điểm chuẩn: Nghệ thuật tìm ra vấn đề
 
-Hãy sử dụng một trường hợp cụ thể để minh họa cách đọc báo cáo Điểm chuẩn. Giả sử chúng tôi đánh giá một Agent nhất định trên AndroidWorld và nhận được hai bảng báo cáo cốt lõi: danh sách hiệu suất theo nhiệm vụ và ma trận hiệu suất theo nhãn khả năng. Giá trị của báo cáo không nằm ở con số tỷ lệ thành công chung mà ở những thiếu sót về mặt cơ cấu mà nó bộc lộ.
+Báo cáo ban đầu ghi lại một lần chạy trên mỗi nhiệm vụ trong số 116 nhiệm vụ, với tỷ lệ thành công tổng thể khoảng 88%. Lỗi không phân tán ngẫu nhiên: ba trong bốn nhiệm vụ `SystemWifiTurn*` thất bại, và trajectory cho thấy Agent liên tục đi tới lui mà không xác nhận trạng thái cuối.
 
-Bảng theo từng nhiệm vụ hiển thị một mô hình rõ ràng: tỷ lệ thành công của hầu hết các nhiệm vụ phổ biến là gần 100%. Các tác vụ thành công này bao gồm các tình huống phổ biến như ghi âm, chụp ảnh, quản lý liên hệ, tạo ghi chú, thao tác với tệp, cài đặt hệ thống, v.v., yêu cầu trung bình hơn chục bước và những bước phức tạp nhất có thể lên tới hàng chục bước. Việc Agent có thể duy trì một chuỗi hoạt động dài như vậy và hoàn thành chúng thành công chứng tỏ khả năng lập kế hoạch và thực thi của nó trong các tình huống tiêu chuẩn.
-
-Lỗi tập trung nhiều ở một số lĩnh vực: trả lời tin nhắn văn bản, chuyển đổi và xác minh trạng thái Wi-Fi, truy vấn việc cần làm, thao tác kết hợp Wi-Fi + Bluetooth, tạo danh sách phát VLC, v.v. Nhìn bề ngoài, các tác vụ này có thể xuất hiện không liên quan với nhau, nhưng ma trận nhãn năng lực cho thấy các đặc điểm chung của chúng.
-
-**Ma trận nhãn năng lực** là chìa khóa để chẩn đoán - nó phân loại chéo tất cả các nhiệm vụ theo khả năng và độ khó cần thiết. Một số khía cạnh khả năng có tỷ lệ thành công rất thấp có xu hướng xuất hiện trong các báo cáo: phiên âm (sao chép thông tin từ hình ảnh/video, bộc lộ những thiếu sót trong khả năng hiểu bằng hình ảnh), math_counting (vấn đề không nằm ở khả năng toán học - LLM hiện đại có khả năng toán học mạnh mẽ - nhưng liệu Agent có thể nhận ra nhu cầu tính toán, trích xuất các số từ giao diện và sau đó ánh xạ kết quả vào một chuỗi thao tác), complex_ui_knowing (phụ thuộc nhiều vào giao diện người dùng được tiêu chuẩn hóa) chế độ, gặp sự cố khi gặp bố cục không chuẩn).
-
-Phân tích hai bảng cùng nhau, nguyên nhân thất bại trở nên rõ ràng: truy vấn việc cần làm không thành công, trỏ đến giao diện người dùng không chuẩn của ứng dụng khiến Agent không thể đọc danh sách nhiệm vụ và lọc; thao tác Wi-Fi không thành công và mức điều khiển trỏ đến giao diện cài đặt hệ thống nằm ngoài tầm hiểu biết của Agent; danh sách phát VLC không thành công, trỏ đến giao diện phức tạp của ứng dụng chuyên nghiệp Agent Creation không thể tìm thấy mục.
+Điểm tổng 88% dễ che khuất cụm lỗi nhỏ nhưng nhất quán này. Tăng giới hạn bước cũng không giải quyết đúng vấn đề: nó có thể biến “Agent không nhìn thấy điều khiển” thành “Agent chưa đủ kiên trì”. Cách đọc đúng là đi từ chi tiết lên: tìm cụm theo nhiệm vụ và nhãn năng lực, phát lại trajectory, xác định lỗi nằm ở quan sát, suy luận, hành động hay xác minh, rồi mới chọn một biến để thay đổi. Nhóm nhiệm vụ Wi-Fi ở đây được dùng để chẩn đoán cơ chế với chi phí thấp, không phải để ước lượng hiệu năng toàn hệ thống.
 
 ### Từ dữ liệu đến giả thuyết: Xây dựng lộ trình cải tiến
 
-**Giả thuyết bề mặt**(chi phí thấp, độc lập với nhau và có thể được xác minh song song): H1 thêm lời nhắc điều hướng cài đặt hệ thống cho hoạt động Wi-Fi (Agent có thể vận hành công tắc, nhưng không thể tìm thấy trang nhập), dự kiến sẽ giải quyết lỗi tập trung khi cài đặt nhiệm vụ; H2 cung cấp các quy tắc xác định thành phần UI cho các ứng dụng việc cần làm và được kỳ vọng sẽ giải quyết được lỗi của các tác vụ việc cần làm.
+Vòng đầu kiểm tra lời giải thích rẻ nhất. H1 giả định Agent thiếu kiến thức điều hướng, nên chỉ nhóm thử nghiệm nhận thêm chỉ dẫn tìm trang Wi-Fi và kiểm tra trạng thái cuối. Tỷ lệ thành công không tăng; prompt không phải nút thắt.
 
-**Giả định cấp trung**(cũng độc lập và có thể song song): H3 Sửa quy trình đầu vào đa phương thức - phát lại trajectory lỗi và nhận thấy rằng hình ảnh có thể bị loại bỏ hoặc chuyển đổi thành mô tả văn bản trong quy trình và cho dù mô hình đa phương thức có mạnh đến đâu thì nó cũng không thể được phiên âm; H4 trên toàn cầu cho phép tư duy giải quyết các lỗi về kiểu đếm.
+Vòng hai kiểm tra Agent thực sự nhìn thấy gì. H5 thay nguồn accessibility không tương thích với API 35 bằng cây UIAutomator được AndroidWorld hỗ trợ. Thành công tăng mạnh, nhưng cây đầy đủ làm lượng token tăng vọt. Vì vậy H5C không thêm thông tin mới; nó chỉ loại các nút container vô hình, không có văn bản và không thể thao tác, nhằm xem có thể giữ nguyên thành công với ít nhiễu hơn hay không.
 
-**Giả thuyết sâu**(chi phí xác minh cao, chỉ bắt đầu khi tỷ lệ thành công của complex_ui vẫn dưới 40% sau khi cải tiến lớp bề mặt và lớp giữa): H5 thay thế một mô hình có hiểu biết trực quan mạnh mẽ hơn (GPT-5), H6 thêm thông tin cây phần tử giao diện người dùng ngoài ảnh chụp màn hình (DOM có cấu trúc được trích xuất bởi UI Automator và xác thực chéo bằng ảnh chụp màn hình). Cả hai có thể tạo thành một thử nghiệm so sánh 2 × 2 (Claude/GPT-5 × chỉ ảnh chụp màn hình/ảnh chụp màn hình + cây phần tử) để trả lời "Cái nào quan trọng hơn, khả năng của mô hình hay mức độ phong phú của thông tin và liệu có tác dụng hiệp đồng giữa hai cái đó hay không."
-
-Mỗi cấu hình được chạy 5 lần (với các hạt giống ngẫu nhiên khác nhau) trên toàn bộ 116 tác vụ và tỷ lệ thành công, số bước trung bình cũng như thời gian thực hiện đã được ghi lại.
+Trong cả ba vòng, mô hình, tham số nhiệm vụ, seed, giới hạn bước và trình giả lập đều được giữ nguyên; thứ tự hai nhánh được luân phiên. Nhờ chỉ thay một biến mỗi vòng, tác dụng phụ còn lại của vòng trước trở thành câu hỏi duy nhất cho vòng sau.
 
 ### Từ kết quả đến quyết định: Sự đánh đổi dựa trên dữ liệu
 
-Giả sử dữ liệu thử nghiệm hiển thị các kết quả sau (**dữ liệu sau là giá trị giả định**): H1 tăng tác vụ cài đặt từ 0% lên 75% và mã thông báo đầu vào tăng 8%; H3 tăng khả năng phiên mã từ 0% lên 80%, mã thông báo tầm nhìn tăng 15% và độ trễ mỗi bước tăng thêm 1 giây; H4 tăng số lượng từ 0% lên 70%, nhưng độ trễ mỗi bước tăng từ 4 giây lên 12 giây và chi phí tăng lên 3 lần; H6 Tăng complex_ui từ 17% lên 52%, tăng mã thông báo lên 30% và tăng độ trễ mỗi bước thêm 2 giây; H5 (GPT-5) tăng complex_ui từ 17% lên 35%, nhưng tăng độ trễ mỗi bước từ 4 giây lên 15 giây.
+Bảng 6-6 tóm tắt số đo thực tế. Mỗi nhánh chỉ có bốn nhiệm vụ, nên các số này đủ để quyết định có đáng chạy rộng hơn hay không, chứ chưa thể đại diện cho toàn bộ AndroidWorld.
 
-Quyết định không chỉ đơn giản là áp dụng tất cả các cải tiến có sẵn:
+Bảng 6-6 Ba vòng thử nghiệm trên nhóm nhiệm vụ Wi-Fi của AndroidWorld
 
-**Triển khai rõ ràng H1+H3**: H1 có chi phí thấp, lợi ích cao và không có tác dụng phụ; mặc dù H3 làm tăng chi phí của mã thông báo tầm nhìn lên 15% và độ trễ 1 giây, nhưng khả năng sao chép được xây dựng từ đầu và sửa lỗi kiến trúc "đường dẫn đầu vào mất thông tin đa phương thức" và cũng có thể ngẫu nhiên cải thiện các tác vụ hiểu hình ảnh khác.
+| Thử nghiệm | Biến duy nhất thay đổi | Thành công đối chứng → thử nghiệm | Token thử nghiệm / đối chứng | Quyết định kế tiếp |
+|---|---|---:|---:|---|
+| H1 | Thêm chỉ dẫn điều hướng | 25% → 25% | 0.47× | Không tăng thành công; giữ prompt cũ |
+| H5 | Accessibility feed → UIAutomator | 25% → 100% | 2.498× | Hiệu quả rõ nhưng quá tốn; tiếp tục tối ưu |
+| H5C | Rút gọn cây UIAutomator | 100% → 100% | 0.506× | Giữ thành công, giảm một nửa token; chuyển sang chạy đầy đủ |
 
-**H4 Tư duy toàn cầu không được chấp nhận**: Mặc dù tỷ lệ thành công chung đã tăng từ 88% lên 91%, nhưng việc phân bổ nhãn khả năng cho thấy chỉ có khoảng 8% nhiệm vụ liên quan đến việc đếm - khiến tất cả các nhiệm vụ phải chịu độ trễ và chi phí gấp 3 lần cho một vài nhiệm vụ là điển hình của việc "dùng dao mổ trâu để giết gà". Tuy nhiên, H4 chứng minh rằng tư duy có hiệu quả trong việc đếm các nhiệm vụ và có thể dùng làm cơ sở để thực hiện vòng điều hòa tiếp theo.
-
-**H6 tốt hơn H5**: Độ trễ mỗi bước của H5 (GPT-5) tăng vọt từ 4 giây lên 15 giây, nhưng complex_ui chỉ tăng lên 35%, cho thấy điểm nghẽn không phải ở khả năng tư duy của mô hình mà là ở mức độ đầy đủ của thông tin đầu vào; H6 (tăng thông tin cây phần tử) sử dụng mức tăng mã thông báo 30% và độ trễ 2 giây để đổi lấy cải tiến 35%, hiệu quả hơn nhiều về mặt chi phí. Sự kết hợp H5+H6 có số điểm cao nhất (68%), nhưng thời lượng nhiệm vụ không thể chấp nhận được khi triển khai quy mô lớn. Nó chỉ thích hợp để kích hoạt có chọn lọc trong các nhiệm vụ không đồng bộ quan trọng (chuyển khoản ngân hàng, cuộc hẹn khám bệnh). H6 có thể được sử dụng trong các tình huống thông thường.
-
-**H2 phải đối mặt với các vấn đề về khả năng mở rộng**: Việc viết các quy tắc đặc biệt cho từng ứng dụng không chuẩn là không bền vững và chỉ có thể được sử dụng như một giải pháp tạm thời. Khả năng khái quát của Agent cần được cải thiện về lâu dài.
+Trình tự quan trọng hơn từng tỷ lệ riêng lẻ. Chỉ dẫn chi tiết hơn không thể bù cho thông tin mà Agent chưa từng nhận được; khi nghi ngờ lỗi quan sát, hãy kiểm tra nó trước khi kéo dài prompt. Tuy nhiên, nhiều đầu vào hơn cũng chưa chắc tốt hơn. Cây phần tử đầy đủ khắc phục vấn đề quan sát nhưng đưa quá nhiều nhiễu vào ngữ cảnh. Loại các nút không có ý nghĩa vẫn giữ bốn lượt chạy thành công và giảm lượng token khoảng một nửa. Không hề đổi mô hình: chính cách Harness biểu diễn UI trước hết quyết định nhiệm vụ có làm được hay không, rồi quyết định chi phí để làm được việc đó.
 
 ### Lặp lại liên tục: từ cải tiến đầu tiên đến phát triển hệ thống
 
-Sau khi triển khai 3 cải tiến H1, H3 và H6 (H4 chưa được triển khai), tỷ lệ thành công của Agent trên AndroidWorld đã tăng từ 88% lên 94%. Khi chạy lại điểm chuẩn hoàn chỉnh, báo cáo mới cho thấy các chế độ lỗi khác nhau: Phiên âm, loại cài đặt và các tác vụ giao diện người dùng phức tạp đều đã được cải thiện đáng kể và khoảng 6% lỗi còn lại tập trung ở tác vụ đếm chưa được giải quyết, xác minh trạng thái Wi-Fi vẫn dao động (từ 0% đến 60% nhưng không ổn định) và một số ít lỗi mới - có thể do các từ nhắc dài hơn hoặc quá nhiều thông tin cây phần tử khiến mô hình mất tập trung.
+H5C vượt qua bốn nhiệm vụ mới chỉ đủ điều kiện cho một phép thử lớn hơn, chưa đủ để triển khai. Cổng tiếp theo là chạy cả 116 nhiệm vụ với năm seed trên Pixel 6 / API 33 và đầy đủ ứng dụng bên thứ ba. Tỷ lệ thành công không được kém hơn, tỷ lệ token phải ≤ 0.75 và tỷ lệ độ trễ phải ≤ 1.5. Trước khi hoàn tất phép thử đó, kết quả 4/4 của nhóm nhỏ không được báo cáo thành “100% thành công toàn hệ thống”.
 
-Các giả thuyết mới có thể được hình thành dựa trên những hiểu biết sâu sắc từ các báo cáo mới và thí nghiệm H4. H7: Hỗ trợ tư duy có điều kiện - sử dụng lệnh gọi LLM nhanh (khoảng 1-2 giây) để phân tích mô tả nhiệm vụ trước khi bắt đầu nhiệm vụ và chỉ bật chế độ tư duy cho các nhiệm vụ liên quan đến đếm hoặc lý luận phức tạp, đồng thời kiểm soát mức tăng độ trễ đối với các nhiệm vụ thực sự cần thiết. H8: Mở rộng không gian hành động và hỗ trợ các cử chỉ phức tạp (thu phóng bằng hai ngón tay, nhấn và kéo lâu, chạm đa điểm) - Phát lại các trajectory không thành công còn lại, bạn có thể thấy rằng một số tác vụ yêu cầu các thao tác như phóng to bản đồ, cắt ảnh và nhấn lâu các menu.
+Đó là ý nghĩa thực tế của lặp liên tục: bằng chứng ở mỗi vòng chỉ cho phép hành động tiếp theo trong đúng phạm vi mà nó hỗ trợ. H1 chặn việc tiếp tục nhồi prompt; H5 tìm ra đúng cơ chế nhưng đồng thời lộ vấn đề chi phí; H5C xử lý chi phí và đủ điều kiện bước vào phép thử rộng. Một báo cáo benchmark tốt không chỉ nêu điểm số, mà còn nói rõ kết luận áp dụng ở đâu, guardrail nào chưa đạt và bước tiếp theo phải kiểm tra điều gì.
 
-Quá trình lặp lại liên tục này dựa trên phản hồi điểm chuẩn sẽ thúc đẩy các khả năng của Agent tăng vọt. Điểm chuẩn không phải là bài kiểm tra một lần mà là bài kiểm tra năng lực liên tục. Việc thiết lập cơ chế đánh giá thường xuyên (chẳng hạn như chạy thử nghiệm hoàn chỉnh mỗi tuần) có thể theo dõi đường cong phát triển của các khả năng, phát hiện sự xuống cấp theo thời gian (các tính năng mới gây ra lỗi), xác minh các cải tiến (các hoạt động tối ưu hóa thực sự hiệu quả) và tích lũy kiến thức (loại cải tiến nào thường hiệu quả và loại cải tiến nào dễ phản tác dụng). Phương pháp lặp lại liên tục, kiểm tra giả thuyết và dựa trên dữ liệu này là con đường chính để chuyển đổi dự án Agent từ dựa trên kinh nghiệm sang kỹ thuật khoa học.
-
-> **6-10 thử nghiệm ★★★: Đánh giá và cải tiến cho AndroidWorld**
+> **Thử nghiệm 6-12 ★★★: Đánh giá và cải tiến trên AndroidWorld**
 >
-> Thử nghiệm này là một quá trình thực hành khép kín hoàn chỉnh từ báo cáo đánh giá đến cải tiến hệ thống. Sử dụng báo cáo đánh giá AndroidWorld trong `ch6/android-world` làm điểm bắt đầu.
+> Thử nghiệm này thực hành trọn vẹn con đường từ báo cáo đánh giá đến cải tiến hệ thống. Bắt đầu bằng báo cáo lịch sử và ba cặp chạy đã lưu trong `chapter6/android-world`.
 >
 > Bước một: chẩn đoán. Phân tích chéo các bảng theo từng nhiệm vụ và ma trận nhãn khả năng để ánh xạ các lỗi bề ngoài của nhiệm vụ đến những thiếu sót về năng lực sâu bên trong. Xác định các nhãn năng lực có tỷ lệ thành công thấp hơn mong đợi và các lĩnh vực nhiệm vụ tập trung thất bại.
 >
-> Bước 2: Xây dựng giả thuyết. Các giả thuyết cải tiến được hình thành theo khuôn khổ ba lớp (lớp bề mặt → lớp giữa → lớp sâu) và mỗi giả thuyết xác định rõ ràng các mục tiêu và phương pháp xác minh tỷ lệ cải thiện tỷ lệ thành công dự kiến.
+> Bước 2: Xây dựng giả thuyết. Hình thành giả thuyết theo ba lớp (bề mặt → trung gian → sâu); mỗi giả thuyết phải nêu mức cải thiện thành công kỳ vọng và cách xác minh.
 >
-> Bước 3: Thử nghiệm theo từng giai đoạn. Thiết kế các thí nghiệm có kiểm soát để kiểm tra các giả thuyết. Giai đoạn đầu tiên kiểm tra các giả thuyết bề mặt chi phí thấp (tối ưu hóa từ gợi ý, bổ sung mô tả công cụ) và giai đoạn thứ hai kiểm tra các giả thuyết về khả năng ở mức độ trung bình (sửa đổi quy trình đầu vào, chuyển đổi chế độ tư duy), tập trung vào việc quan sát phạm vi cải tiến của các nhiệm vụ theo nhãn khả năng cụ thể, đồng thời đo lường các tác dụng phụ.
+> Bước 3: Thử nghiệm theo giai đoạn. Tái hiện H1, H5 và H5C, mỗi vòng chỉ đổi một biến. Ghi token, độ trễ và hồi quy bên cạnh tỷ lệ thành công.
 >
 > Bước 4: Ra quyết định dựa trên dữ liệu. Đưa ra quyết định triển khai dựa trên tỷ lệ chi phí-lợi ích—thay vì chỉ áp dụng tất cả các cải tiến có sẵn, bạn cần cân nhắc phạm vi, tác động về độ trễ và chi phí chung của mỗi cải tiến. Những cải tiến chi phí thấp và năng suất cao được triển khai trước tiên, còn những cải tiến chi phí cao được giới hạn trong các kịch bản chính.
 >
-> Bước 5: Lặp lại. Sau khi hoàn thành các cải tiến, hãy chạy lại bộ dữ liệu đánh giá và sử dụng LLM để phân tích kết quả đánh giá và tạo báo cáo mới. Các báo cáo mới sẽ hiển thị các chế độ lỗi khác nhau và trở thành điểm khởi đầu cho lần lặp tiếp theo.
+> Bước 5: Lặp lại. Một thử nghiệm nhóm nhỏ đạt yêu cầu chỉ được chuyển sang chạy đầy đủ. Chỉ thảo luận triển khai sau phép thử 116×5 trong môi trường tham chiếu; trong báo cáo phải giữ rõ khác biệt môi trường, cỡ mẫu và phạm vi chưa hoàn chỉnh.
 >
 
 ## Từ đánh giá bên ngoài đến đánh giá nội bộ: cơ sở hạ tầng đánh giá cho Agent cấp sản xuất
@@ -691,7 +758,7 @@ Thông điệp cốt lõi của phần này là: **Các phần trước đã hư
 
 Về mặt **môi trường hiện thân**, RoboTwin2 xây dựng nhiệm vụ vận hành hai cánh tay dựa trên công cụ vật lý và môi trường ngẫu nhiên hóa vị trí, hướng và hình thức của các đối tượng để cải thiện khả năng khái quát hóa. Observation Space bao gồm tầm nhìn của nhiều camera và trạng thái khớp, đồng thời đạt được khả năng kiểm soát theo thời gian thực thông qua **Action Chunking** - mô hình lên kế hoạch cho nhiều hành động liên tục cùng một lúc (xem Chương 9 để biết chi tiết). OSWorld Cho phép cài đặt lại thông qua ảnh chụp nhanh máy ảo, AndroidWorld tập trung vào tự động hóa ứng dụng di động. Bất kể môi trường kỹ thuật số hay môi trường được thể hiện, môi trường mô phỏng cũng yêu cầu môi trường thực thi biệt lập và cơ chế nhận dạng ảo (cách ly VM/container, tác nhân dân cư, xác thực Human-in-the-Loop, hệ thống tệp dùng chung) được thảo luận trong Chương 4, sẽ không được lặp lại ở đây.
 
-> **Thử nghiệm 6-11 ★★: Định cấu hình Môi trường thông minh hiện thân với OpenVLA và RoboTwin2**
+> **Thử nghiệm 6-13 ★★: Định cấu hình Môi trường thông minh hiện thân với OpenVLA và RoboTwin2**
 >
 > Xây dựng môi trường mô phỏng hoạt động của robot. Đọc tài liệu `ch7/SimpleVLA-RL` và OpenVLA để hiểu kiến trúc của mô hình hành động-ngôn ngữ-tầm nhìn (tích hợp từ đầu đến cuối của bộ mã hóa hình ảnh + mô hình ngôn ngữ + bộ giải mã hành động, chiếu hình ảnh và văn bản vào một không gian ngữ nghĩa chung). Định cấu hình môi trường RoboTwin2 và hiểu không gian quan sát (trạng thái khớp ba chiều RGB + 14 chiều) và không gian hành động (vectơ điều khiển 14 chiều). Nghiên cứu cơ chế ngẫu nhiên hóa môi trường và logic ràng buộc không gian trong move_can_pot. Chạy đánh giá mô hình được đào tạo trước, ghi lại tỷ lệ thành công, thời gian hoàn thành và các chế độ thất bại, tập trung vào tác động của việc phân chia hành động.
 >
@@ -710,7 +777,7 @@ Tại thời điểm này, môi trường đánh giá đã hoàn thành quá tr�
 
 ## Tóm tắt chương này
 
-Chương này tập trung vào một câu hỏi cốt lõi: Làm thế nào để đánh giá liệu Agent có thực sự được cải thiện hay không? Từ việc xây dựng môi trường thử nghiệm có thể tái tạo, đến thiết kế bộ dữ liệu có thể chống rò rỉ, đến việc để LLM đóng vai trò đánh giá và cuối cùng là sử dụng kết quả đánh giá để thúc đẩy việc lựa chọn và lặp lại mô hình - mọi liên kết trong liên kết này sẽ ảnh hưởng đến độ tin cậy của kết luận. Việc chọn mô hình còn phải so sánh đường cong tăng trưởng năng lực dưới các ngân sách tài nguyên khác nhau, thay vì chỉ nhìn một điểm số. Việc đánh giá Agent cấp sản xuất không phải là bài kiểm tra định kỳ mà là quá trình xác nhận liên tục được đưa vào mọi quyết định về sản phẩm.
+Chương này xoay quanh một câu hỏi: làm sao biết Agent thực sự đã tốt hơn? Từ môi trường thử nghiệm có thể tái hiện, tập dữ liệu chống rò rỉ, LLM làm giám khảo, cho đến việc dùng kết quả để chọn mô hình và lặp hệ thống — mắt xích nào cũng ảnh hưởng đến độ tin cậy của kết luận. Các thí nghiệm đo được trong chương bổ sung bốn cảnh báo cụ thể: ghép bộ nhớ có cấu trúc với RAG không mặc nhiên tạo ra hiệp lực; mức tiết kiệm từ cache và nén không thể cộng thẳng; lựa chọn âm thanh tham chiếu làm thay đổi ý nghĩa của điểm đa phương thức; và cách Harness biểu diễn đầu vào có thể quyết định cả thành công lẫn chi phí token. Việc chọn mô hình còn phải so sánh đường cong năng lực theo ngân sách tài nguyên, không chỉ nhìn một điểm số. Với Agent cấp sản xuất, đánh giá không phải kỳ thi thỉnh thoảng mới tổ chức mà là cơ chế xác minh liên tục trong mọi quyết định sản phẩm.
 
 Phương pháp cốt lõi: quan sát → giả thuyết → thử nghiệm → xác minh → hiểu biết mới → giả thuyết mới, khiến dự án Agent chuyển từ “giả kim thuật” dựa trên kinh nghiệm sang kỹ thuật khoa học dựa trên dữ liệu.
 
@@ -728,5 +795,5 @@ Hệ thống đánh giá được thiết lập trong chương này không chỉ
 4. ★★ τ-bench đánh giá Agent bằng cách mô phỏng hành vi của người dùng thực. Nhưng bản thân người dùng được mô phỏng cũng là LLM - nó có thể đánh giá thấp một cách có hệ thống các tình huống khó khăn nhất định (chẳng hạn như người dùng cảm xúc, thiếu chính xác). Làm cách nào để xác minh chất lượng của chính người dùng mô phỏng?
 5. ★★ So sánh theo cặp (mô hình Bradley-Terry) giả định rằng các ưu tiên có tính bắc cầu (nếu A > B và B > C thì A > C). Nhưng sở thích của con người thường vi phạm tính bắc cầu. Trong trường hợp nào các tùy chọn không mang tính bắc cầu có thể xuất hiện trong đánh giá Agent? Điều này ảnh hưởng thế nào đến độ tin cậy của bảng xếp hạng?
 6. ★★ Chương này đề xuất phương pháp khoa học “quan sát→giả thuyết→thí nghiệm→xác minh”. Nhưng trên thực tế, không gian hành vi của Agent là rất lớn và việc xác minh một giả thuyết có thể yêu cầu hàng trăm lần đánh giá. Làm cách nào để tối đa hóa lượng thông tin được đánh giá trong phạm vi ngân sách tính toán hạn chế?
-7. ★ Trong trường hợp giả định của chương này, mặc dù tư duy hỗ trợ toàn cầu (H4) đã cải thiện tỷ lệ thành công chung nhưng nó đã bị từ chối do sự chậm trễ và chi phí, và cuối cùng phát triển thành hỗ trợ có điều kiện (H7). Những tín hiệu nào (đặc điểm mô tả nhiệm vụ, kiểu lỗi lịch sử, sự không chắc chắn trong hoạt động) phù hợp làm cơ sở để định tuyến "có nên bật chế độ tư duy" hay không? Có tình huống Agent nào mà việc suy nghĩ có hại không?
+7. ★ Trong thử nghiệm AndroidWorld, cây phần tử đầy đủ nâng tỷ lệ thành công từ 25% lên 100% nhưng làm lượng token tăng lên 2.498× so với đối chứng; sau khi cắt gọn, tỷ lệ thành công vẫn là 100% còn lượng token giảm xuống 0.506×. Bạn sẽ thiết kế quy tắc cắt tỉa tự động như thế nào để loại các nút UI rỗng về ngữ nghĩa mà không làm mất thông tin cần cho khả năng truy cập, xác minh trạng thái hoặc thao tác về sau?
 8. ★★ Mô phỏng người dùng của τ-bench áp dụng "tiết lộ thông tin lũy tiến"—không cung cấp tất cả thông tin cùng một lúc mà tiết lộ dần dần dựa trên các câu hỏi do Agent đặt ra. Thiết kế này ảnh hưởng thế nào đến kết quả đánh giá? Nếu chiến lược tiết lộ thông tin của người dùng mô phỏng khác biệt đáng kể so với chiến lược của người dùng thực, liệu kết luận đánh giá có còn đáng tin cậy không?

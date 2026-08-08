@@ -301,6 +301,16 @@ Biến lời tuyên bố thành bằng chứng chính là bài toán của **Loo
 
 [^loop-engineering-2026]: Osmani, Addy. "Loop Engineering: Designing Loops that Prompt Coding Agents", 2026. https://addyosmani.com/blog/loop-engineering/
 
+**Framework cụ thể: LoopX.** LoopX đưa vòng lặp ra khỏi prompt của mô hình và lịch sử trò chuyện, đặt nó vào một mặt phẳng điều khiển bền vững, trung lập với runtime của Agent: mục tiêu và ranh giới giải thích vì sao công việc tồn tại; cổng quyết định và việc cần làm xác định điều gì được phép diễn ra lúc này; bằng chứng và hạn mức quyết định có được tiếp tục hay không; còn bàn giao cho phép lượt sau hoặc một Agent khác tiếp nối. Một lần thực thi có quản trị được cô đọng thành giao thức rõ ràng:
+
+```text
+LoopX quyết định → Agent thực thi → bộ xác minh độc lập chứng minh → LoopX ghi nhận
+```
+
+Agent vẫn suy luận, sử dụng công cụ và tạo ra sản phẩm ứng viên. LoopX không thay thế runtime của Agent; nó quản trị tính liên tục giữa các lượt. Chỉ kết quả được xác minh độc lập mới có thể cập nhật tiến độ bền vững và tiêu tốn hạn mức. Xác minh thất bại sẽ chuyển sang sửa chữa hoặc lập kế hoạch lại, còn cổng con người, trạng thái chờ và giới hạn ngân sách dừng vòng lặp trước khi thực thi. Ranh giới này biến một nguyên tắc của Loop Engineering thành bất biến hệ thống có thể kiểm tra: **mô hình có thể đề xuất “xong”, nhưng không thể tự phê duyệt chữ “xong” của mình.** LoopX v0.4.0 vẫn đánh dấu đường Turn có quản trị là thử nghiệm, vì vậy ở đây nó được dùng như framework cụ thể cho “vòng lặp + xác minh + điều kiện dừng”, không phải bằng chứng về mức tăng chất lượng tác vụ nói chung.[^loopx-framework]
+
+[^loopx-framework]: LoopX, "The local control plane for long-running AI agent work", v0.4.0, commit ổn định `a893d221db0b8e028997cefc303f7ec9fa7dbe0a`. https://github.com/huangruiteng/loopx/tree/a893d221db0b8e028997cefc303f7ec9fa7dbe0a
+
 **Mô hình người đề xuất-người đánh giá.**
 
 
@@ -437,7 +447,7 @@ Chế độ tuần tự trở nên kém hiệu quả khi nhiều tác vụ con c
 >
 > Sau cuộc gọi, hệ thống sẽ tạo Điện thoại Agent và cung cấp cho nó ngữ cảnh nhiệm vụ rõ ràng: nó được khởi chạy để hỗ trợ điền biểu mẫu, những thông tin cần thu thập và yêu cầu định dạng cho từng trường.
 >
-> Hai Agent ngay lập tức chuyển sang chế độ cộng tác thời gian thực, tiếp tục dùng cơ chế song song không đồng bộ của thử nghiệm 10-4. Điện thoại Agent gọi đến người dùng và hỏi từng người một: "Xin chào, tôi đang giúp bạn điền vào mẫu đăng ký. Trước hết, tên bạn là gì?" Agent không mong đợi hoạt động hoàn tất của máy tính mà tiếp tục hỏi câu tiếp theo. Sau khi tất cả thông tin được thu thập, Điện thoại Agent sẽ gửi `{"type": "task_completed"}` và Máy tính Agent gửi biểu mẫu.
+> Hai Agent ngay lập tức chuyển sang chế độ cộng tác thời gian thực, tiếp tục dùng cơ chế song song không đồng bộ của thử nghiệm 10-4. Phone Agent khởi tạo một phiên âm thanh WebRTC trên trình duyệt với người dùng và hỏi từng thông tin: "Xin chào, tôi đang giúp bạn điền vào mẫu đăng ký. Trước hết, tên bạn là gì?" Sau khi người dùng trả lời, Agent lập tức gửi `{"type": "info_collected", "field": "Name", "value": "Zhang San"}` cho Computer Agent để tìm và điền trường tương ứng. Phone Agent không chờ thao tác trên máy tính hoàn tất mà tiếp tục hỏi câu tiếp theo. Quy trình **hỏi-một, điền-một** này giúp độ trễ thao tác không chặn luồng hội thoại. Sau khi thu thập đủ thông tin, Phone Agent gửi `{"type": "task_completed"}` và Computer Agent gửi biểu mẫu. Ở đây, “điện thoại” có nghĩa là tương tác âm thanh thời gian thực; không cần truy cập PSTN hay số E.164. Một trang WebRTC cục bộ là đủ cho thử nghiệm, còn khi triển khai từ xa có thể bổ sung signaling và TURN theo yêu cầu của môi trường mạng.
 >
 > **Yêu cầu thử nghiệm**:
 > 1. Triển khai Computer Use Agent có thể quyết định khởi động Điện thoại Agent một cách độc lập
@@ -521,6 +531,10 @@ Cần phải nói một cách trung thực rằng MetaGPT không được phân 
 **Trò chuyện nhóm AutoGen: bản ghi cuộc trò chuyện được chia sẻ + lập lịch tập trung.** Trò chuyện nhóm của AutoGen cho phép nhiều Agent tham gia vào cùng một cuộc trò chuyện: trong mỗi vòng, một "bộ chọn loa" sẽ xác định Agent ai sẽ phát biểu tiếp theo - bộ chọn có thể là quy tắc xoay vòng đơn giản hoặc có thể là LLM xác định ai là người phù hợp nhất để trả lời cuộc trò chuyện dựa trên nội dung cuộc trò chuyện hiện tại; mọi bài phát biểu của Agent đều hiển thị cho tất cả người tham gia. Điều cần phải nói một cách trung thực là nó không phải là một hệ thống hoàn toàn phi tập trung theo nghĩa luồng điều khiển: việc lựa chọn người nói được phân xử thống nhất bởi GroupChatManager tập trung và bản thân "đến lượt ai phát biểu" là quyết định về luồng điều khiển. Do đó, định vị chính xác hơn của nó là một dạng kết hợp giữa "bản ghi cuộc trò chuyện được chia sẻ + lập lịch tập trung" - tất cả Agent đều xem cùng một bản ghi cuộc trò chuyện công khai, nhưng mỗi bản ghi đều duy trì một bộ công cụ và từ nhắc nhở hệ thống độc lập, đồng thời quyền lập lịch tập trung vào tay của bộ chọn. Chế độ này phù hợp với những công việc cần thảo luận từ nhiều góc độ và thứ tự các bài phát biểu khó có thể sửa trước (chẳng hạn như xem xét chương trình, phân tích liên miền). Cái giá phải trả là cuộc đối thoại có thể phân tán—ai cũng phát biểu mà tổng thể không tiến lên, tức là hoạt khóa (livelock) trong lĩnh vực tương tranh—do đó các điều kiện chấm dứt cần phải được thiết kế cẩn thận. Theo kích thước của chương này, nó được phân loại thành phần này dựa trên cơ chế lập kế hoạch (bộ chọn tập trung). Tuy nhiên, xét về khía cạnh ngữ cảnh, nó thực sự nằm giữa chia sẻ và không chia sẻ, và là một dạng kết hợp. Điều này một lần nữa cho thấy rằng cấu trúc liên kết và chia sẻ ngữ cảnh là độc lập về mặt khái niệm và có thể được kết hợp theo cách không phù hợp.
 
 **OpenAI Swarm và Agents SDK: mạng chuyển giao.** Ngược lại, đại diện của phân cấp ngang hàng thực sự trong luồng điều khiển là Swarm của OpenAI (và SDK kế nhiệm Agents): nó biến việc phân cấp thành dạng đơn giản nhất - mỗi Agent được trang bị một số tùy chọn chuyển giao, có thể chuyển giao quyền kiểm soát cho bất kỳ Agent nào khác trong mạng bất kỳ lúc nào. Nếu bộ phận dịch vụ khách hàng Agent xác định rằng sự cố liên quan đến việc hoàn tiền, vấn đề đó sẽ được chuyển cho Agent hoàn tiền; nếu số tiền hoàn lại Agent được phát hiện là do lỗi kỹ thuật trong quá trình xử lý, nó có thể được chuyển cho bộ phận hỗ trợ kỹ thuật Agent. Không có bộ lập lịch trung tâm trong hệ thống, luồng quyền điều khiển giữa các Agent ngang hàng giống như một chiếc dùi cui và các quyết định định tuyến hoàn toàn bị phân tán trong phán đoán riêng của mỗi Agent - đây là một "chuyển giao ngang hàng" rõ ràng và đây cũng là triển khai kỹ thuật của mô hình chuyển giao chuỗi được hiển thị trong Hình 10-10. Rủi ro của chuyển giao ngang hàng là thành vòng: A chuyển cho B, B lại chuyển ngược về A, nhiệm vụ quay vòng vô ích trong vòng lặp, do đó cần một cơ chế bảo vệ như trần số lần chuyển giao để cắt đứt.
+
+> **Giải thích thuật ngữ: Agent Swarm.** Kể từ năm 2025, "Agent Swarm" (cụm Agent) trở thành từ khóa thịnh hành của các hãng, nhưng nó không tương ứng với một kiến trúc duy nhất. Cách dùng trong ngành đại thể có hai loại: thứ nhất, mạng chuyển giao kiểu OpenAI Swarm (thư viện swarm của LangGraph, điều phối chuyển giao của Microsoft Agent Framework cũng thuộc loại này), chính là chế độ phi tập trung của phần này; thứ hai, Agent Swarm của một số sản phẩm thương mại chủ lưu là chế độ người quản lý được nhân rộng quy mô: Agent Swarm lần đầu ra mắt cùng Kimi K2.5 do Agent chính tự động tạo ra hàng trăm Agent con thực thi song song, đưa quyết định điều phối "khi nào tách, tách mấy cái" vào huấn luyện trực tiếp trong mô hình thông qua học tăng cường Agent song song, K3 kế thừa nó thành một bậc mô hình độc lập và mã nguồn mở sandbox huấn luyện Agent song song đi kèm là AgentEnv[^ch10-kimi-swarm]; hệ thống nghiên cứu đa Agent của Anthropic và Wide Research của Manus cũng thuộc cấu trúc hình sao orchestrator-worker. Hy vọng rằng sau khi đọc cuốn sách này, bạn đọc có thể nhìn thấu bản chất đằng sau các khái niệm, phân tích hệ thống đa Agent từ góc độ nguyên lý đầu tiên.
+
+[^ch10-kimi-swarm]: Moonshot AI, *Kimi Agent Swarm: 100 Sub-Agents at Scale*, 2026, https://www.kimi.com/blog/agent-swarm; tại GTC 2026 đã tiết lộ giới hạn số Agent con song song được mở rộng lên 300; AgentEnv là sandbox huấn luyện Agent do Moonshot AI hợp tác với KVCache.ai cùng mã nguồn mở hóa, phát hành cùng Kimi K3 vào tháng 7 năm 2026.
 
 ### Hợp tác giữa các tổ chức: Thỏa thuận A2A
 
@@ -695,15 +709,15 @@ Người sói hỗ trợ **trò chơi chiến lược** theo ba chiều của ph
 
 > **Thử nghiệm 10-8 ★★★: Hệ thống Người sói lồng tiếng Agent**
 >
-> Người sói là một trò chơi suy luận xã hội cổ điển nhằm kiểm tra khả năng suy luận, kỹ năng lừa dối và chiến lược xã hội của người chơi. Thử nghiệm này xây dựng một hệ thống đa Agent, cho phép AI Agent đóng nhiều vai trò khác nhau trong Người sói và chơi trò chơi với người chơi thực thông qua giọng nói trong thời gian thực - điều này cũng kiểm tra khả năng suy luận, nhập vai và tương tác thời gian thực của Agent.
+> Người sói là trò chơi suy luận xã hội cổ điển kiểm tra khả năng lập luận, đánh lừa và chiến lược xã hội. Thử nghiệm này cho AI Agent chơi bằng giọng nói với một người thật hoặc một trình mô phỏng người dùng LLM độc lập. Nghiệm thu tự động không được dừng chỉ vì không có người: trình mô phỏng dùng mô hình thật, chỉ suy luận từ ngữ cảnh được phép cho ghế của mình và hành động qua các công cụ do trò chơi cung cấp.
 >
 > **Thiết kế kiến trúc**:
 >
-> **1. Quản lý trạng thái trò chơi**: Người đánh giá (điều khiển bằng mã, không phải LLM) duy trì trạng thái tập trung - danh sách người chơi (người thật + AI kết hợp), danh tính, trại, trạng thái sinh tồn, giai đoạn trò chơi (đêm/ngày/bỏ phiếu/quyết toán), hồ sơ sự kiện lịch sử.
+> **1. Quản lý trạng thái trò chơi**: Trọng tài (điều khiển bằng mã, không phải LLM) duy trì trạng thái tập trung—danh sách người chơi (một ghế người dùng + các ghế AI), danh tính, phe, trạng thái sống, giai đoạn trò chơi (đêm/ngày/bỏ phiếu/quyết toán) và lịch sử sự kiện.
 >
 > **2. Kiểm soát quyền truy cập thông tin**: Cơ chế cốt lõi của Người sói là sự bất cân xứng thông tin - các nhân vật khác nhau có thể nhìn thấy thông tin khác nhau. Ví dụ, người sói biết đồng bọn của mình là ai nhưng dân làng thì không; Nhà tiên tri có thể kiểm tra danh tính của một người mỗi đêm, nhưng chỉ có anh ta mới biết kết quả. Cách thực hiện là khi gọi Agent cho từng vai trò, trọng tài chỉ truyền thông tin mà vai trò đó sẽ thấy.
 >
-> **3. Tương tác giọng nói trong thời gian thực**: Thử nghiệm này yêu cầu sử dụng khả năng giọng nói trong thời gian thực để đạt được kết nối giọng nói giữa người chơi thực và AI Agent. Nên sử dụng giọng nói thời gian thực Agent trong Chương 9 làm cơ sở. Trong giai đoạn thảo luận ban ngày, trọng tài quản lý thứ tự phát biểu - mỗi người chơi có thể nói theo thứ tự vị trí hoặc cho phép người chơi giơ tay yêu cầu ra sàn. Giai đoạn bình chọn thu thập phiếu bầu của tất cả người chơi (người thật thể hiện qua giọng nói, AI đưa ra quyết định thông qua lý luận) và những người chơi bị trục xuất sẽ được công bố sau khi kiểm phiếu.
+> **3. Giọng nói thời gian thực và mô phỏng người dùng tự động**: Nhánh con người dựa trên Agent giọng nói ở Chương 9. Ở nhánh tự động, một LLM độc lập phải gọi công cụ hợp lệ duy nhất của lượt; phát ngôn đã chọn được tổng hợp thành âm thanh thật rồi gửi đến API ASR thật. Trò chơi chỉ dùng bản chép ASR, không tiêm trực tiếp văn bản trước âm thanh, và fail-closed nếu mục tiêu công cụ khác mục tiêu ASR phân tích. VAD và barge-in vẫn là phạm vi riêng của nhánh con người.
 >
 > **4. Agent Lý luận và chiến lược**:
 >
@@ -712,14 +726,17 @@ Người sói hỗ trợ **trò chơi chiến lược** theo ba chiều của ph
 > - **Lý luận logic của làng**: "Phân tích xem lời nói của mỗi người chơi có tự nhất quán hay không và chú ý đến những người chơi muốn dẫn dắt nhịp điệu, làm mờ danh tính và thường xuyên thay đổi vị trí của họ. Hãy chú ý đến hành vi bỏ phiếu - người sói có xu hướng tập trung phiếu bầu vào những người tốt gây ra mối đe dọa lớn nhất cho họ. Đừng nghi ngờ một cách tùy tiện, mọi lý do phải dựa trên những sự kiện và logic cụ thể."
 >
 > **Tiêu chí chấp nhận**:
-> - Lập game con người 6-8 (1 người chơi thật + 5-7 AI Agent)
-> - Cấu hình nhân vật: 2 người sói, 1 tiên tri, 1 phù thủy, còn lại là dân làng, người chơi thực sự phân vai ngẫu nhiên
+> - Lập ván 6–8 người (1 ghế người dùng + 5–7 AI Agent); người dùng có thể là người thật đã được phép hoặc trình mô phỏng độc lập dùng LLM thật, công cụ và vòng lặp giọng nói
+> - Cấu hình vai: 2 người sói, 1 tiên tri, 1 phù thủy, còn lại là dân làng; ghế người dùng được gán vai ngẫu nhiên
+> - Người dùng mô phỏng chỉ thấy ngữ cảnh công khai/riêng tư được phép cho ghế của mình; hành động phải đi qua ranh giới gọi công cụ LLM thật → âm thanh → ASR thật
 > - Trò chơi có thể chơi bình thường trong ít nhất 3 vòng hoàn chỉnh (chu kỳ bình chọn ngày đêm)
 > - Lời nói và hành vi của AI Agent phù hợp với nhận dạng nhân vật và chiến lược trò chơi của nó
 > - Người sói Agent có thể che giấu danh tính một cách hiệu quả
 > - Nhà tiên tri Agent có thể nhảy ra và thông báo thông tin bài thi đúng lúc
 > - Lý luận của Dân làng Agent dựa trên phân tích logic về lời nói và hành vi chứ không phải đoán ngẫu nhiên
 > - Có thể xác định chính xác kết quả khi kết thúc trò chơi
+>
+> **Kết quả đo được (2026-08-01)**: [Các bản ghi xác thực `voice-werewolf`](../chapter10/voice-werewolf/validation/runs/) đã chạy nhánh tự động bằng lệnh gọi OpenRouter thật và đầu vào âm thanh gốc. Việc tái xác thực độc lập nghiêm ngặt bác bỏ hai lần chạy sớm vì bản chép không phân tích được “P1 is not” bị nhầm là bỏ phiếu trắng; ranh giới đã sửa nay yêu cầu ASR nói rõ `abstain`, `skip` hoặc `none`. Lần chạy v2 không bị ảnh hưởng đã vượt qua ghế người dùng, cấu hình vai, công cụ LLM, âm thanh tổng hợp, ASR thật, hai lần khớp hành động, ba chu kỳ đầy đủ, cô lập thông tin và người thắng theo luật. Chiến lược thất bại vì một dân làng đã trục xuất nhầm nhà tiên tri. Do đó hệ thống đã được xác minh end-to-end, còn chất lượng chiến lược tổng thể chưa đạt.
 >
 >
 > ![Hình 10-13 Hệ thống đặc vụ người sói bằng giọng nói ](images/fig10-13.svg)

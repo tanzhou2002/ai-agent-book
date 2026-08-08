@@ -1,7 +1,7 @@
 # Agentic RAG System / Agentic RAG 系统
 
-> Companion material for *AI Agents in Depth*, Chapter 3 — **Experiment 3-9**: ReAct agentic vs non-agentic RAG on Chinese legal Q&A; offline multi-hop evidence recall.  
-> 配套《深入理解 AI Agent》第 3 章 **实验 3-9**：ReAct 式 Agentic vs 非 Agent 式 RAG 司法问答；离线多跳证据召回对比。
+> Companion material for *AI Agents in Depth*, Chapter 3 — **Experiment 3-8**: ReAct agentic vs non-agentic RAG on Chinese legal Q&A; offline multi-hop evidence recall.  
+> 配套《深入理解 AI Agent》第 3 章 **实验 3-8**：ReAct 式 Agentic vs 非 Agent 式 RAG 司法问答；离线多跳证据召回对比。
 
 ← [Chapter 3 index / 返回第 3 章目录](../README.md)
 
@@ -33,7 +33,22 @@ hashes are written under `validation/runs/<run-id>/`; the auditable pointer is
 ### Installation
 
 ```bash
-pip install -r requirements.txt
+# From the repository root: use the shared Chapter 3 environment
+uv sync --locked --python 3.12 --extra ch3
+
+# Activate it before changing directories:
+# macOS/Linux:
+source .venv/bin/activate
+# Windows PowerShell: .venv\Scripts\Activate.ps1
+# Windows cmd: .venv\Scripts\activate.bat
+
+# pip fallback when uv is not installed:
+# python -m pip install -e ".[ch3]"
+
+cd chapter3/agentic-rag
+
+# Single-project compatibility path, still supported during migration:
+# python -m pip install -r requirements.txt
 ```
 
 ### Configuration
@@ -87,7 +102,7 @@ Real output (measured; 21372 law chunks / 288 docs):
   复杂题                              8%          100%        1.0 → 1.5
 ```
 
-Reading (aligned with Exp. 3-9): **easy questions ~tied at 100%**; **hard/poorly phrased: 8% → 100%**. Metric is pure retrieval **evidence recall** (upper bound on answer quality). Gold statutes are confirmed present in `laws/`.
+Reading (aligned with Exp. 3-8): **easy questions ~tied at 100%**; **hard/poorly phrased: 8% → 100%**. Metric is pure retrieval **evidence recall** (upper bound on answer quality). Gold statutes are confirmed present in `laws/`.
 
 > Offline mode uses pre-labeled `subqueries` for “agent decomposed search” to isolate **retrieval strategy**; real systems generate subqueries in the ReAct loop. End-to-end answer quality: `evaluation/evaluate.py` (needs API key).
 
@@ -211,7 +226,22 @@ Educational project.
 ### 安装与配置
 
 ```bash
-pip install -r requirements.txt
+# 在仓库根目录使用统一的第 3 章环境
+uv sync --locked --python 3.12 --extra ch3
+
+# 切换目录前先激活环境：
+# macOS/Linux：
+source .venv/bin/activate
+# Windows PowerShell：.venv\Scripts\Activate.ps1
+# Windows cmd：.venv\Scripts\activate.bat
+
+# 未安装 uv 时可用 pip 兜底：
+# python -m pip install -e ".[ch3]"
+
+cd chapter3/agentic-rag
+
+# 迁移期间仍支持单项目兼容路径：
+# python -m pip install -r requirements.txt
 ```
 
 环境变量见 English 节（`MOONSHOT_API_KEY` 等；`KB_TYPE=offline|local|dify`）。

@@ -9,55 +9,81 @@
 
 ## Canonical manuscript reproduction / 正式复现实验
 
-Experiment 2-6 is specifically **Claude Code + Anthropic's official PPTX
-Skill + a real academic PDF**. The canonical runner now performs exactly that
-workflow. It pins the official repository to revision
+Experiment 2-6 is **the pinned official Anthropic PPTX Skill + a real academic
+PDF**, executed by a skills-capable agent runtime. Under the author's
+runtime-agnostic acceptance policy (2026-07-31), acceptance is NOT gated on
+Anthropic credentials: the runtime may be **Claude Code** or an equivalent
+runtime that supports SKILL.md-style progressive disclosure, such as **Kimi
+Code CLI**. The pinned Skill content, the real paper, and every artifact gate
+are identical for either runtime.
+
+The runner pins the official repository to revision
 `69c0b1a0674149f27b61b2635f935524b6add202`, the revision containing the
 `html2pptx.md` flow named in the manuscript, and uses Vaswani et al.'s real
 *Attention Is All You Need* PDF (arXiv:1706.03762, SHA-256
 `bdfaa68d...82df697`).
 
+Run with Kimi Code CLI (`KIMI_API_KEY` / `MOONSHOT_API_KEY`, model
+`kimi-code/k3`):
+
 ```bash
 cd chapter2/agent-skills-ppt
-python run_official_experiment.py \
+python run_official_experiment.py --runtime kimi \
+  --output runs/exp2-6-kimi-pptx-$(date +%Y%m%d-%H%M%S)
+```
+
+Run with Claude Code (valid `ANTHROPIC_API_KEY`, or `--auth-source
+claude-login` for an enabled Claude Code login):
+
+```bash
+cd chapter2/agent-skills-ppt
+python run_official_experiment.py --runtime claude \
   --output runs/exp2-6-claude-pptx-$(date +%Y%m%d-%H%M%S)
 ```
 
-Requirements are Claude Code with either a valid `ANTHROPIC_API_KEY` or enabled
-Claude Code login access, Node.js, Python, and LibreOffice's `soffice` plus
-`pdftoppm` for the official thumbnail script. The
-runner fetches and verifies the pinned external Skill; it does not copy or
-reimplement it. Raw Claude stream events prove Skill selection, full
-`SKILL.md`/`html2pptx.md` disclosure, official script use, thumbnail inspection,
-model usage/cost, and artifact creation. The validator requires 10–15 slides,
-all manuscript sections, and three PDF-extracted visuals that are byte-identical
-to media embedded in the deck. See `experiment_protocol.json` for all frozen
-gates.
+Both paths fetch and verify the pinned external Skill (never copied or
+reimplemented), install it as the runtime's only Skill (Claude:
+`.claude/skills/pptx` symlink; Kimi: `--skills-dir`, which replaces the
+auto-discovered skill directories for that launch), and capture the raw
+stream-json event stream as the receipt. Raw events prove Skill selection,
+full `SKILL.md`/`html2pptx.md` disclosure, official script use, thumbnail
+inspection, and artifact creation. The fail-closed validator requires 10–15
+slides, all manuscript sections, three PDF-extracted visuals byte-identical to
+media embedded in the deck, a full-deck thumbnail grid, and a credential scan
+of the stream. See `experiment_protocol.json` for all frozen gates.
 
-### Current canonical evidence status (2026-07-30)
+### Canonical evidence status (2026-07-31): PASSED with Kimi Code CLI
 
-The official repository is prepared at the pinned revision and all four required
-Skill-file hashes match the frozen receipt. Claude Code, LibreOffice, Node.js,
-and `pdftoppm` are installed. The live generation itself is currently externally
-blocked before any model token or Skill invocation:
+`runs/exp2-6-kimi-pptx-20260731-v1/manifest.json` passes all 15 gates:
 
-- `runs/exp2-6-claude-pptx-20260730-v2` used the configured
-  `ANTHROPIC_API_KEY`; Claude returned `401 API key is invalid` after its retry
-  sequence, with zero usage.
-- `runs/exp2-6-claude-pptx-20260730-v3` explicitly removed that environment key
-  and used the authenticated Claude Code login; the service returned `Your
-  organization has disabled Claude subscription access for Claude Code`, again
-  with zero usage.
+- Runtime: Kimi Code CLI 0.31.0, model `kimi-code/k3`, 114 tool calls over 25
+  assistant turns; the raw stream (`kimi_stream.jsonl`) contains no credential
+  material.
+- Progressive disclosure is genuine: the model invoked the `pptx` Skill
+  (metadata → full `SKILL.md`), then read `html2pptx.md`, used the official
+  `scripts/html2pptx.js` workflow, ran the official `scripts/thumbnail.py`,
+  and iterated on visually inspected thumbnails (overlap/cutoff fixes) before
+  finishing.
+- Deck: 13 slides covering title, background, method/architecture, training,
+  key results, generalization, interpretability, and conclusion; valid
+  OOXML ZIP, reopened by python-pptx and rendered to 13 pages by LibreOffice.
+- Four visuals (Figure 1, Figure 2, Table 2, Figure 3) were cropped from the
+  source PDF with `pdftoppm`, documented in `source_visuals/manifest.json`
+  with page/label/caption, and are byte-identical to media embedded in the
+  PPTX.
 
-Both credential-free streams and fail-closed manifests are retained. Neither is
-accepted as Experiment 2-6. Completion requires a valid Anthropic API key or an
-organization that enables Claude Code subscription access, followed by a fresh
-canonical run. The existing `output/presentation.pptx` belongs to the legacy
-demo (nine slides and no embedded media) and is not substituted for this result.
+Earlier Claude Code attempts (`runs/exp2-6-claude-pptx-20260730-v2`–`v4`) were
+externally blocked before inference by invalid/disabled Anthropic credentials;
+their fail-closed manifests and credential-free streams are retained as
+evidence of the old gate. The Claude path above remains fully supported for
+readers who have Anthropic credentials. The existing
+`output/presentation.pptx` belongs to the legacy demo (nine slides and no
+embedded media) and is not acceptance evidence.
 
-正式复现必须使用 Claude Code、Anthropic 官方 PPTX Skill 和真实论文 PDF。
-上述命令会固定外部仓库版本、保存完整的渐进式披露轨迹，并对页数、章节、三张
-论文原图、PPTX 有效性、缩略图和凭证泄漏逐项验收。
+正式复现使用固定的 Anthropic 官方 PPTX Skill 与真实论文 PDF，运行时可以是
+Claude Code 或支持 SKILL.md 渐进式披露的等价运行时（如 Kimi Code CLI）——实验
+对象是 Skill 内容，运行时可替换。两条路径都会固定外部仓库版本、保存完整的渐进式
+披露轨迹，并对页数、章节、论文原图、PPTX 有效性、缩略图和凭证泄漏逐项验收。
 
 ## Legacy mechanism illustration (not acceptance evidence)
 
@@ -114,9 +140,25 @@ skills/
 ### Run
 
 ```bash
-pip install -r requirements.txt
+# From the repository root: use the shared Chapter 2 environment
+uv sync --locked --python 3.12 --extra ch2
+
+# Activate it before changing directories:
+# macOS/Linux:
+source .venv/bin/activate
+# Windows PowerShell: .\.venv\Scripts\Activate.ps1
+# Windows cmd: .venv\Scripts\activate.bat
+
+# pip fallback when uv is not installed:
+# python -m pip install -e ".[ch2]"
+
+cd chapter2/agent-skills-ppt
+
+# Single-project compatibility path, still supported during migration:
+# python -m pip install -r requirements.txt
+
 cp env.example .env        # or export directly
-export OPENAI_API_KEY=sk-...   # default model gpt-5.6-luna; override with OPENAI_MODEL
+export OPENAI_API_KEY=your-openai-api-key   # default model gpt-5.6-luna; override with OPENAI_MODEL
 python demo.py
 python demo.py --paper papers/your_paper.md    # different paper/outline
 python demo.py -o output/deck.pptx --model gpt-5.6-luna   # output path / model
@@ -143,6 +185,21 @@ Without an OpenAI key, `--offline` runs the same three-layer progressive disclos
 python demo.py --offline                       # writes output/presentation.pptx, no network
 python demo.py --offline -o output/deck.pptx   # custom output path
 ```
+
+#### Offline validation
+
+```bash
+# From the repository root; include dev tools for pytest.
+uv sync --locked --python 3.12 --extra ch2 --extra dev
+source .venv/bin/activate
+# Windows PowerShell: .\.venv\Scripts\Activate.ps1
+
+cd chapter2/agent-skills-ppt
+python -m pytest tests
+python demo.py --offline
+```
+
+`tests/` contains offline regressions for malformed or unsafe tool-dispatch arguments and PPTX generator edge cases. They do not require an API key.
 
 The bundled script can also run alone (no Agent):
 
@@ -183,6 +240,7 @@ python skills/pptx/scripts/generate_pptx.py papers/sample_outline.json output/de
 | `skills/pptx/scripts/generate_pptx.py` | Bundled generator: outline → `.pptx` |
 | `papers/sample_paper.md` | Bundled short paper/outline (online input) |
 | `papers/sample_outline.json` | Slide outline for offline mode (payload schema example) |
+| `tests/` | Offline regression tests for dispatch safety and generator edge cases |
 | `output/presentation.pptx` | Generated deck (created at runtime) |
 
 ### Use another paper
@@ -235,9 +293,25 @@ skills/
 ### 运行
 
 ```bash
-pip install -r requirements.txt
+# 在仓库根目录使用统一的第 2 章环境
+uv sync --locked --python 3.12 --extra ch2
+
+# 切换目录前先激活环境：
+# macOS/Linux：
+source .venv/bin/activate
+# Windows PowerShell：.\.venv\Scripts\Activate.ps1
+# Windows cmd：.venv\Scripts\activate.bat
+
+# 未安装 uv 时可用 pip 兜底：
+# python -m pip install -e ".[ch2]"
+
+cd chapter2/agent-skills-ppt
+
+# 迁移期间仍支持单项目兼容路径：
+# python -m pip install -r requirements.txt
+
 cp env.example .env        # 或直接 export
-export OPENAI_API_KEY=sk-...   # 默认模型 gpt-5.6-luna，可用 OPENAI_MODEL 覆盖
+export OPENAI_API_KEY=your-openai-api-key   # 默认模型 gpt-5.6-luna，可用 OPENAI_MODEL 覆盖
 python demo.py
 python demo.py --paper papers/your_paper.md    # 换一篇论文/大纲
 python demo.py -o output/deck.pptx --model gpt-5.6-luna   # 指定输出路径 / 模型
@@ -264,6 +338,21 @@ python demo.py --help                          # 查看全部参数
 python demo.py --offline                       # 生成 output/presentation.pptx，全程无网络
 python demo.py --offline -o output/deck.pptx   # 指定输出路径
 ```
+
+#### 离线验证
+
+```bash
+# 从仓库根目录开始；pytest 需要 dev 依赖。
+uv sync --locked --python 3.12 --extra ch2 --extra dev
+source .venv/bin/activate
+# Windows PowerShell: .\.venv\Scripts\Activate.ps1
+
+cd chapter2/agent-skills-ppt
+python -m pytest tests
+python demo.py --offline
+```
+
+`tests/` 包含工具分发参数缺失、非法路径和 PPTX 生成器边界情况的离线回归测试，无需 API Key。
 
 捆绑脚本本身也可脱离 Agent 单独运行，直接把大纲 JSON 落地为 pptx：
 
@@ -306,6 +395,7 @@ python skills/pptx/scripts/generate_pptx.py papers/sample_outline.json output/de
 | `skills/pptx/scripts/generate_pptx.py` | 捆绑生成器，用 python-pptx 从大纲生成 .pptx |
 | `papers/sample_paper.md` | 自带的精简论文/大纲（在线模式输入） |
 | `papers/sample_outline.json` | 内置幻灯片大纲（离线模式输入，同时是 payload schema 的范例） |
+| `tests/` | 工具分发安全性与生成器边界情况的离线回归测试 |
 | `output/presentation.pptx` | 生成的演示文稿（输出，运行后产生） |
 
 ### 换一篇论文

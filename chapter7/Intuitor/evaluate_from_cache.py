@@ -57,7 +57,7 @@ def extract_answer_from_gsm8k_format(text: str) -> Optional[str]:
     if "####" in text:
         parts = text.split("####")
         if len(parts) > 1:
-            return parts[1].strip()
+            return parts[-1].strip()
     
     return None
 
@@ -80,29 +80,41 @@ def normalize_number(text: str) -> Optional[str]:
     # 确保是字符串
     text = str(text)
 
+    # Unwrap LaTeX formatting before parsing; the wrapped content may itself be numeric.
+    cleaned = re.sub(r'\\(?:text|mathrm|mathbf)\s*\{([^}]*)\}', r'\1', text)
+    cleaned = cleaned.replace("\\$", "").replace("$", "").replace("\\,", "").replace("\\text", "")
+    cleaned = cleaned.replace(",", "")
+
     # Evaluate \frac{a}{b} before brace stripping (else "\frac{6}{2}" becomes "frac62").
-    frac = re.search(r'\\(?:d)?frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}', text)
+    frac = re.search(r'(-)?\s*\\(?:d)?frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}', cleaned)
     if frac:
         try:
-            num = float(frac.group(1).replace(",", "").strip())
-            den = float(frac.group(2).replace(",", "").strip())
+            sign = -1.0 if frac.group(1) else 1.0
+            num_match = re.match(r'\s*(-?\s*\d+(?:\.\d+)?)', frac.group(2))
+            den_match = re.match(r'\s*(-?\s*\d+(?:\.\d+)?)', frac.group(3))
+            if not num_match or not den_match:
+                raise ValueError("fraction component does not start with a number")
+            num = float(num_match.group(1).replace(" ", ""))
+            den = float(den_match.group(1).replace(" ", ""))
             if den != 0:
-                return _format_normalized_number(num / den)
+                return _format_normalized_number(sign * (num / den))
         except ValueError:
             pass
 
-    # Plain a/b (e.g. boxed "6/2") before taking the first digit run alone.
-    slash = re.fullmatch(r'\s*(-?\d+(?:\.\d+)?)\s*/\s*(-?\d+(?:\.\d+)?)\s*', text)
+    # Plain a/b before taking the first digit run alone; allow spaces and units.
+    slash = re.search(r'(-?\s*\d+(?:\.\d+)?)\s*/\s*(-?\s*\d+(?:\.\d+)?)', cleaned)
     if slash:
         try:
-            num = float(slash.group(1))
-            den = float(slash.group(2))
+            num = float(slash.group(1).replace(" ", ""))
+            den = float(slash.group(2).replace(" ", ""))
             if den != 0:
                 return _format_normalized_number(num / den)
         except ValueError:
             pass
     
-    # 去除 LaTeX 符号
+    # 去除 LaTeX 及货币符号
+    text = text.replace("\\$", "")
+    text = text.replace("$", "")
     text = text.replace("\\,", "")
     text = text.replace("\\text", "")
     text = text.replace("{", "").replace("}", "")
@@ -314,4 +326,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

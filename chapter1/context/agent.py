@@ -5,10 +5,8 @@ Designed to demonstrate the importance of context through ablation studies.
 """
 
 import json
-import os
-import re
 import logging
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 from enum import Enum
 import requests
@@ -143,16 +141,24 @@ class ToolRegistry:
             Dictionary with conversion result
         """
         try:
-            # Normalize currency codes (handle S$ / $ notation). Must be
-            # unconditional: gated on startswith("S$"), the "$" -> USD
-            # replacement could never fire (no "$" survives the S$ replace).
-            from_currency = from_currency.upper().replace("S$", "SGD").replace("$", "USD")
-            to_currency = to_currency.upper().replace("S$", "SGD").replace("$", "USD")
-            
-            logger.info(f"Converting {amount} {from_currency} to {to_currency}")
-            
-            # For demonstration, using fixed rates (in production, use a real API)
-            # These are example rates - you would normally fetch from an API
+            if isinstance(amount, str):
+                clean_amt = amount.replace(",", "").strip()
+                symbols_to_strip = sorted(
+                    [
+                        "USD$", "U.S.$", "US$", "$",
+                        "SGD$", "SG$", "S$",
+                        "AUD$", "AU$", "A$",
+                        "CAD$", "CA$", "C$",
+                        "€", "£", "₹",
+                    ],
+                    key=len,
+                    reverse=True,
+                )
+                for sym in symbols_to_strip:
+                    clean_amt = clean_amt.replace(sym, "")
+                amount = float(clean_amt.strip())
+            else:
+                amount = float(amount)
             exchange_rates = {
                 "USD": 1.0,
                 "EUR": 0.92,
@@ -165,6 +171,47 @@ class ToolRegistry:
                 "INR": 83.12,
                 "SGD": 1.34
             }
+
+            def _normalize_code(code: str) -> str:
+                if not isinstance(code, str):
+                    return str(code or "")
+                c = code.strip().upper()
+                symbols = {
+                    "$": "USD",
+                    "US$": "USD",
+                    "U.S.$": "USD",
+                    "USD$": "USD",
+                    "S$": "SGD",
+                    "SG$": "SGD",
+                    "SGD$": "SGD",
+                    "A$": "AUD",
+                    "AU$": "AUD",
+                    "AUD$": "AUD",
+                    "C$": "CAD",
+                    "CA$": "CAD",
+                    "CAD$": "CAD",
+                    "€": "EUR",
+                    "£": "GBP",
+                    "₹": "INR",
+                }
+                if c in symbols:
+                    return symbols[c]
+                if c.endswith("$"):
+                    prefix = c[:-1].strip()
+                    if prefix in exchange_rates:
+                        return prefix
+                    if prefix in ("US", "U.S."):
+                        return "USD"
+                    if prefix in ("AU", "A"):
+                        return "AUD"
+                    if prefix in ("CA", "C"):
+                        return "CAD"
+                return c
+
+            from_currency = _normalize_code(from_currency)
+            to_currency = _normalize_code(to_currency)
+            
+            logger.info(f"Converting {amount} {from_currency} to {to_currency}")
             
             if from_currency not in exchange_rates or to_currency not in exchange_rates:
                 return {"error": f"Unsupported currency: {from_currency} or {to_currency}"}
@@ -340,33 +387,18 @@ class ContextAwareAgent:
         self.provider = provider.lower()
         self.verbose = verbose
 
-        # Provider -> (base_url, default_model)
-        deepseek_base = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-        provider_defaults = {
-            "siliconflow": ("https://api.siliconflow.cn/v1", "Qwen/Qwen3.5-397B-A17B"),
-            "doubao": ("https://ark.cn-beijing.volces.com/api/v3", "doubao-seed-1-6-thinking-250715"),
-            "kimi": ("https://api.moonshot.cn/v1", "kimi-k3"),
-            "moonshot": ("https://api.moonshot.cn/v1", "kimi-k3"),
-            # V4 Flash: OpenAI-compatible; tool calling + thinking mode.
-            # Legacy deepseek-chat / deepseek-reasoner aliases deprecated 2026-07-24.
-            "deepseek": (deepseek_base, "deepseek-v4-flash"),
-            "zhipu": ("https://open.bigmodel.cn/api/paas/v4", "glm-5.2"),
-            "openrouter": ("https://openrouter.ai/api/v1", "openai/gpt-5.6-luna"),
-        }
-        if self.provider not in provider_defaults:
-            raise ValueError(
-                f"Unsupported provider: {provider}. Use 'siliconflow', 'doubao', "
-                "'kimi', 'moonshot', 'deepseek', 'zhipu', or 'openrouter'"
-            )
-        base_url, default_model = provider_defaults[self.provider]
-        resolved_model = model or default_model
-
-        # Universal OpenRouter fallback: if the primary provider key is missing
-        # but OPENROUTER_API_KEY is present, route through OpenRouter with a
-        # mapped model id. Behavior is unchanged when the provider key is set.
-        from config import resolve_llm_backend
-        resolved_key, resolved_base_url, self.model, self.using_openrouter = \
-            resolve_llm_backend(api_key, base_url, resolved_model)
+        # Base URLs, default models and key lookup all live in the shared
+        # registry (agentbook/providers.py), so adding a provider there makes it
+        # usable here with no change. resolve_backend also applies the universal
+        # OpenRouter fallback: when the provider's own key is missing but
+        # OPENROUTER_API_KEY is set, the request routes through OpenRouter with a
+        # mapped model id. Behaviour is unchanged when the provider key is set.
+        from config import resolve_backend
+        backend = resolve_backend(self.provider, model=model, api_key=api_key)
+        resolved_key = backend.api_key
+        resolved_base_url = backend.base_url
+        self.model = backend.model
+        self.using_openrouter = backend.using_openrouter
         if self.using_openrouter:
             logger.info(
                 f"{self.provider} API key not set; routing via OpenRouter "
@@ -667,6 +699,17 @@ Important: When you have gathered all necessary information and computed the fin
 
         Returns:
             Task execution result
+
+        Result semantics:
+          - ``completed`` means the loop received a non-empty terminal text
+            response. It does not claim that the requested task was correct.
+          - ``task_success`` is ``None`` here because correctness is
+            task-specific and cannot be inferred from arbitrary natural
+            language prompts. Callers with a known rubric should compute it
+            from the final answer and trajectory.
+          - ``success`` is retained as a backwards-compatible alias for
+            ``completed``. New consumers should use ``completed`` or their
+            task-specific ``task_success`` value instead.
         """
         if max_iterations is None:
             try:
@@ -842,12 +885,15 @@ Important: When you have gathered all necessary information and computed the fin
                 # Note: We do NOT modify the system prompt anymore.
                 # The context is already built into the conversation through tool history
                     
-            except TimeoutError as e:
-                logger.error(f"Request timed out after 60 seconds")
+            except TimeoutError:
+                logger.error("Request timed out after 60 seconds")
                 return {
                     "error": "Request timed out. The model is taking too long to respond. Try a simpler task or different provider.",
                     "trajectory": self.trajectory,
-                    "iterations": iteration
+                    "iterations": iteration,
+                    "completed": False,
+                    "task_success": False,
+                    "success": False,
                 }
             except Exception as e:
                 logger.error(f"Error during task execution: {str(e)}")
@@ -864,19 +910,29 @@ Important: When you have gathered all necessary information and computed the fin
                     return {
                         "error": "Request timed out. The model is taking too long to respond. Try a simpler task or different provider.",
                         "trajectory": self.trajectory,
-                        "iterations": iteration
+                        "iterations": iteration,
+                        "completed": False,
+                        "task_success": False,
+                        "success": False,
                     }
                 return {
                     "error": str(e),
                     "trajectory": self.trajectory,
-                    "iterations": iteration
+                    "iterations": iteration,
+                    "completed": False,
+                    "task_success": False,
+                    "success": False,
                 }
-        
+        completed = bool(final_answer and str(final_answer).strip())
         return {
             "final_answer": final_answer,
             "trajectory": self.trajectory,
             "iterations": iteration,
-            "success": final_answer is not None,
+            "completed": completed,
+            "task_success": None,
+            # Backwards-compatible alias. This is terminal-response status,
+            # not a correctness judgment.
+            "success": completed,
             "provider": self.provider,
             "model": self.model,
             "base_url": self.base_url,

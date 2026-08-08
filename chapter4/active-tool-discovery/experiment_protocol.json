@@ -1,5 +1,5 @@
 {
-  "experiment": "4-6",
+  "experiment": "4-7",
   "title": "Active tool discovery with Qwen3-4B and the perception MCP server",
   "authority": "book/chapter4.md:624",
   "model": "qwen3:4b",
@@ -14,7 +14,8 @@
     "system_tools": ["web_search", "code_interpreter", "discover_tools"],
     "discovery_top_k": 5,
     "schema_injection_role": "user",
-    "status_bar_updates": true
+    "status_bar_updates": true,
+    "base_tool_boundary": "Generic web search and local code cannot substitute for authoritative domain-specific retrieval; discover each missing specialist at the moment the gap arises."
   },
   "tasks": [
     {

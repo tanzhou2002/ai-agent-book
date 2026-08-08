@@ -1,6 +1,6 @@
 """Sub-agent management tools for the Collaboration Tools MCP Server.
 
-Implements the 子 Agent 管理 primitives described in 实验 4-3:
+Implements the 子 Agent 管理 primitives described in 实验 4-4:
 
     - spawn_subagent            create a sub-agent (sync or async)
     - send_message_to_subagent  send a follow-up message to a sub-agent
@@ -29,7 +29,7 @@ import logging
 import os
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -401,7 +401,7 @@ async def spawn_subagent(
             "context_strategy": context_strategy,
             "mode": mode,
             "status": "running",
-            "created_at": datetime.now().isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
             "prepared_context": prepared["context_text"],
             "context_tokens": prepared["context_tokens"],
             "prep_tokens": prepared["prep_tokens"],

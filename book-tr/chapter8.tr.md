@@ -127,6 +127,14 @@ Prompt'un otomatik optimizasyonunda birkaç farklı yol izlenmiştir. DSPy[^dspy
 
 Skill öğrenmesi aynı ilkeyi izler, ama etki alanı daha yereldir. Skill'i, ihtiyaç duyuldukça açılan bir görev el kitabı gibi düşünebilirsiniz: birden çok deneyim bir araya gelip eksiksiz bir sigorta hasar süreci oluşturuyorsa, sistem buna karşılık gelen Skill'i üretebilir veya gözden geçirebilir. Aday Skill yalnızca bir konuşmanın özeti olmamalı; en azından ne zaman yükleneceğini, ön koşullarını, işlem adımlarını, bilinen tuzakları ve doğrulama yöntemini açıklamalı ve kaynak trajectory'leri saklamalıdır. Sistem önce mevcut Skill kütüphanesinde benzer yetenekleri arar: aynı süreç zaten varsa öncelikle yerel bir `patch` uygular, yalnızca gerçekten yeni ve bağımsız bir yetenek ortaya çıktığında yeni bir dizin oluşturur. Böylece kütüphanenin adları farklı ama içerikleri birbirine benzeyen el kitaplarıyla dolması önlenir. Anthropic'in Skill Creator'ı[^anthropic-skill-creator] "taslak — test — değerlendirme — revizyon" üretim döngüsünü gösteriyor; bu, Skill'in nasıl üretilip iyileştirileceği sorusunu çözer. Asıl zor olan ise hangi çalışma kanıtlarının üretimi tetiklemeye yettiği, çatışmaların nasıl ele alınacağı ve değişikliğin alan görevlerinden ve eski görev regresyonundan geçip geçmediğidir.
 
+> **Deney 8-9 ★★: Geri bildirimi yazma Skill'ine dönüştürmek**
+>
+> `data/feedback_pairs.json` içindeki 20 before/after çifti üç partide işlenir; aday kurallar çıkarılır, tekrarlar birleştirilir, eşik çakışmaları bulunur ve kaynak/kapsam içeren `SKILL.md` üretilir. Deterministik kurallar kodla, LLM kuralları 10 altın örnekle kalibre edilir.
+>
+> Eksik görev sınır kümesindeki tespit, normal metinlerdeki yanlış alarm ve kural sayısının büyümesi birlikte raporlanır. İlk gerçek çalışma 0/8 tespit ve 7/8 yanlış alarm verdi; model dışı filtre ve deterministik fallback sonrası 8/8, 0/8 ve 21 adaydan 8 kural elde edildi. Uygulama [`ai-style-skill`](../chapter8/ai-style-skill/) içindedir.
+
+Kıvrımlı tırnak vakası, Skill'in küresel bir değiştirme kuralı değil, veri sözleşmesi olması gerektiğini gösterir: SFT'den önce sentetik örnekler belge türü, kapsam ve programlama diline göre katmanlandırılmalı; kod/JSON/korunan alan kapılarından ve manuel denetimden geçmelidir. Exact-copy vakasında tokenizer encode→decode round-trip'i, modelin byte-exact kopyası, Harness serileştirmesi ve araç eşleşmesi ayrı regresyon katmanlarıdır.
+
 > **Deney 8-3 ★★: Başarısız Trajectory'lere Dayanarak System Prompt'u İyileştirmek**
 >
 > **Deney Amacı**: Havayolu müşteri hizmetleri Agent'ının "kullanıcı politikayı sorguladığında fazla erken insana devretme" başarısızlık trajectory'lerinden öğrenmesini sağlamak ve aynı zamanda yeni kuralın gerçekten devretme gerektiren eski senaryoları bozmadığını kanıtlamak.
@@ -204,6 +212,12 @@ Araç yaratma da aynı protokolü izler. Alita'nın[^alita-2025] verdiği örnek
 
 [^alita-2025]: Qiu, J., et al. *Alita: Generalist Agent Enabling Scalable Agentic Reasoning with Minimal Predefinition and Maximal Self-Evolution.* arXiv:2505.20286, 2025.
 
+Deney 8-8 aynı protokolü doğrulama katmanına uygular. Kullanıcı düzeltmeleri, düşük puanlar ve denetimler onaysız yüksek riskli işlemi tekrar tekrar gösterdiğinde aday değişiklik izole dizine yazılır. Araç adı ve argümanlardan tehlikeli silmeleri ve `git push --force` çağrılarını sınıflandırın; tek kullanımlık onay tokenını somut işleme bağlayın. Aday AST/statik kontrolleri, sahte veya tekrar kullanılan tokenları içeren sınır yeniden oynatmasını ve koruma kümesini geçmelidir.
+
+> **Deney 8-8 ★★: Kullanıcı geri bildirimiyle yüksek riskli işlem onay kapısı**
+>
+> `failure_trajectories.json` içindeki üç sinyal ve kontrol trajectory'leri kullanılır. Gerçek `gpt-4o-mini` adayı eksik görev, normal işlem ve tek kullanımlık token kontrollerini geçemediği için güvenlik kapısı tarafından reddedildi. Deterministik aday bütün kontrolleri geçip `release_to_canary` oldu; kontroller, karar ve kararlı dizinin hash'i kaydedilir. Uygulama [`harness-safety-gate`](../chapter8/harness-safety-gate/) içindedir.
+
 ### Deneyimi Parametrelere Yazmak
 
 Bilgi, talimat ve program bir ön kabule dayanır: hedeflenen yetenek dış simgelerle görece eksiksiz biçimde ifade edilebilir. Oysa tıbbi görüntü anlama, doğal konuşma ezgisi, metindeki şablonlaşmış "yapay zeka kokusu"nun giderilmesi ve uzun erimli planlama gibi yetenekleri birkaç kurala ya da iş akışına sıkıştırmak çok güçtür. Bu tür yetenekler post-training yoluyla model parametrelerine yazılmak zorundadır.
@@ -225,6 +239,16 @@ Bir katman daha dışarı çıkıldığında optimizasyon nesnesi artık yalnız
 Aynı düşünce iş akışlarına ve tüm Harness'e genişletilebilir. AFlow, birden çok LLM çağrısından oluşan iş akışını bir kod grafiği olarak temsil eder ve yürütme geri bildirimiyle düğüm ve kontrol akışı birleşimlerini arar[^aflow-2025]; Meta-Harness ise Kodlama Agent'ına aday Harness'in kaynak kodunu, puanlarını ve trajectory'lerini okutarak bilginin nasıl saklandığını, getirildiğini ve sunulduğunu belirleyen kodu arar[^meta-harness-2026]. Bölüm 5, kodun Agent'ın sistem yapısını ifade ettiği genel dil olduğunu zaten göstermişti; buradaki yenilik şu: kod yalnızca bir kez üretilen bir çıktı değildir, değerlendirme geçmişiyle birlikte sürekli aramanın nesnesi de olabilir.
 
 Optimizasyon katmanı ne kadar yüksekse o kadar iyi değildir. Yerel bir kuralı aramak için birkaç sınır vakası yeter; oysa eksiksiz bir iş akışını ya da Harness'i aramak çok daha geniş bir aday uzayı, çok daha yüksek bir değerlendirme maliyeti ve çok daha zor bir nedensellik atfı demektir. Açık, yinelenen ve tek bir bileşene kadar götürülebilen bir arıza için önce denetlenebilir yerel bir yama uygulanmalıdır; ancak yerel değişiklikler bileşenler arası bir sorunu uzun süre çözemediğinde ya da mevcut yönetim yönteminin kendisi darboğaza dönüştüğünde iş akışı, Harness ve hatta optimize edici katmanına çıkmaya değer. Hangi katmana çıkılırsa çıkılsın, değerlendiriciler, yetki sınırları ve saklı testler değiştirilebilir alanın dışında kalmak zorundadır — arama uzayı ne kadar büyürse bu güven kökü o kadar önemli olur.
+
+> **Deney 8-6 ★★★: Bu Kitabı Hermes'e Verirsek Kendini Yükseltebilir mi?**
+>
+> **Amaç**: Bir Agent'ın dış bilgiyi kendi yeteneklerinde gerçek bir güncellemeye dönüştürüp dönüştüremediğini sınamak. Deney bir sorun ya da özellik listesi vermez; Hermes'e on bölüm ve kendi kaynak kodu verilir, ilkeleri anlaması, uygulamasını incelemesi ve değerli bir iyileştirmeyi kendisinin seçmesi beklenir.
+>
+> **Tasarım**: Kitap ve kaynak kod okunabilir bağlamı oluşturur; kararlı sürüm, bağımsız Reviewer ve kabul testleri ise Hermes'in değiştirebildiği alanın dışında kalır. Hermes **oku → karşılaştır → seç → değiştir → doğrula** döngüsünü tamamlamalıdır. Aday reddedilirse inceleme bir sonraki öğrenme turunun girdisi olur; kapı atlanarak başarı ilan edilemez.
+>
+> **Gerçek çalıştırma**: Kitabı okuyan Hermes, kaydedilmiş yürütme trajectory'lerinde sonraki öğrenmenin doğrudan kullanabileceği yapılandırılmış kanıt bulunmadığını kendi başına fark etti. Yürütme sonuçlarını ihtiyatlı öğrenme sinyallerine dönüştürmeyi seçti, kendi kodunu değiştirdi ve testler ekledi. İlk üç bağımsız inceleme gerçek veri biçimleri, kalıcılık yolları ve sayım anlamlarıyla uyumsuzluklar buldu. Her bulgu özgün Hermes oturumuna döndü; dördüncü inceleme adayı kabul etti.
+>
+> **İddianın sınırı**: Bu çalıştırma, bir Agent'ın uzun bilgiden ilkeler çıkarıp bunları kendi koduna eşleyebildiğini ve dış doğrulama altında bir öz güncellemeyi tamamlayabildiğini gösterir. Downstream görev başarısının arttığını kanıtlamaz; bunun için ayrı bir ablation deneyi gerekir. Deney fikrini okur Grace sağlamıştır.
 
 ## Uzun Süre Çalışabilen Sürekli Evrim Döngüsünü Kurmak
 
@@ -319,7 +343,7 @@ Sürekli evrim, bilginin, Prompt'un ve araçların sınırsızca büyümesi deme
 - Yeni kanıtlarla çürütülen bilgileri silmek;
 - LoRA'yı özgün temel modelden yeniden eğitmek.
 
-> **Deney 8-6 ★★★: Agent'ın Gerçekten Sürekli Evrilip Evrilmediğini Değerlendirmek**
+> **Deney 8-7 ★★★: Agent'ın Gerçekten Sürekli Evrilip Evrilmediğini Değerlendirmek**
 >
 > **Deney Amacı**: "Tek bir geri bildirimi saklayabilme", "yalnızca durmadan ekleme yapma" ve "güncelleyebilme, aktarabilme ve yeteneği koruyabilme" biçimindeki üç uzun vadeli davranışı birbirinden ayırmak ve aynı soru kümesini tekrar tekrar çalıştırmayı sürekli öğrenme diye göstermeyi önlemek.
 >

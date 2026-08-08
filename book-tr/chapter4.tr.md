@@ -1,17 +1,17 @@
 # Araçlar
 
-Bilim kurgu filmi *Her*'de, yapay zeka asistanı Samantha e-postaları proaktif olarak organize edebilir, duygusal açıdan karmaşık mesajları tanıyıp inceltilmiş yanıtlar önerebilir, yayıncılık konularında baş karakteri temsil edebilir ve farklı iletişim kanalları arasında sorunsuzca geçiş yapabilir. Zekası ikna edicidir çünkü güçlü **araçlara** sahiptir—dil "beynini" gerçek dijital dünyaya bağlayan "el, ayak ve duyular".
+Bilim kurgu filmi *Her*'de, yapay zekâ asistanı Samantha e-postaları proaktif biçimde düzenler, duygusal açıdan karmaşık mesajları tanıyıp yanıtları iyileştirir, yayıncılık işlerinde baş karakteri temsil eder ve iletişim kanalları arasında sorunsuzca geçiş yapar. Zekâsını etkileyici kılan, dil “beynini” gerçek dijital dünyaya bağlayan “eller, ayaklar ve duyular” olan güçlü **araçlarıdır**. Manus ve OpenClaw gibi günümüzün genel amaçlı Agent'ları, *Her*'de Samantha'nın ihtiyaç duyduğu yeteneklerin çoğunu şimdiden gerçekleştirmiştir.
 
 Ancak günümüz teknolojisiyle böyle bir asistan inşa etmek, iki temel zorluğu çözmek anlamına gelir:
 
-1.  **Araç Seçimi Zorluğu**: Binlerce aracın dokümantasyonu context penceresini taşırmaya yeterli olduğunda, bir Agent bir görevi tamamlamak için gerekeni nasıl doğru ve verimli biçimde bulabilir? Araçları pasif olarak "seçmekten" aktif olarak "keşfetmeye" nasıl evrilebilir? Bu bölüm araç tasarım ilkelerini, mevcut ekosistemi ve ölçekte proaktif keşfi ele alır; bir Agent'ın kendi başına araçlar "yaratmasına" izin veren ileri adım Bölüm 8'de ele alınır.
+1.  **Araç Seçimi Zorluğu**: Binlerce aracın dokümantasyonu context penceresini taşırmaya yeterli olduğunda, bir Agent bir görevi tamamlamak için gerekeni nasıl doğru ve verimli biçimde bulabilir? Araçları pasif olarak "seçmekten" aktif olarak "keşfetmeye" nasıl evrilebilir? Bu bölüm araç tasarım ilkelerini, mevcut ekosistemi ve ölçekte proaktif keşfi ele alır; bir Agent'ın operasyonel deneyime dayanarak araçları otonom biçimde yaratması, değiştirmesi ve kullanımdan kaldırması Bölüm 8'de ele alınır.
 2.  **Asenkronluk ve Olaylar Zorluğu**: Bir Agent, senkron beklemelerde durup kalmadan, uzun süren görevleri nasıl yönetebilir, kullanıcıdan veya sistemden gelen kesintileri her an nasıl ele alabilir ve e-posta, takvimler ve sistem uyarıları gibi kanallardan gelen dış olaylara nasıl yanıt verebilir?
 
-Bu bölüm her iki zorluğu da sırayla ele alır. Beş araç kategorisine genel bir bakışla açılır, ardından her araca uygulanan tasarım ilkelerine—ve MCP protokolünün, hiyerarşik organizasyon, dinamik keşif ve Skills kullanarak araç ekosistemini nasıl birleştirdiğine ve araç seçimini nasıl evcilleştirdiğine—döner. Oradan, Agent'ın aktif olarak çağırdığı üç kategoriyi—Algı, Yürütme ve İş Birliği—inceler, ardından olay güdümlü asenkron Agent mimarisini ve bunun üzerine inşa edilen iki araç kategorisini ele alır: Olay Tetikleyici Araçlar ve Kullanıcı İletişim Araçları. Bölüm, araçlar yüzlerce veya binlerce olduğunda keşif sorununa sistematik bir yanıt olan "Proaktif Araç Keşfi" ile kapanır. Bir Agent'ın kullanım deneyimini biriktirerek her kullandığı araçta nasıl daha yetkin hale geldiği, Bölüm 8'de (Agent'ın Kendi Kendine Evrimi) sistematik olarak ele alınır.
+Bu bölüm her iki zorluğu da sırayla ele alır. Beş araç kategorisine genel bir bakışla açılır, ardından her araca uygulanan tasarım ilkelerine—ve MCP protokolünün, hiyerarşik organizasyon, dinamik keşif ve Skills kullanarak araç ekosistemini nasıl birleştirdiğine ve araç seçimini nasıl evcilleştirdiğine—döner. Oradan, Agent'ın aktif olarak çağırdığı üç kategoriyi—Algı, Yürütme ve İş Birliği—inceler, ardından olay güdümlü asenkron Agent mimarisini ve bunun üzerine inşa edilen iki araç kategorisini ele alır: Olay Tetikleyici Araçlar ve Kullanıcı İletişim Araçları. Bölüm, araçlar yüzlerce veya binlerce olduğunda keşif sorununa sistematik bir yanıt olan "Proaktif Araç Keşfi" ile kapanır. Bir Agent'ın değerlendirilmiş araç kullanım trajectory'lerini yeni yeteneklere nasıl dönüştürdüğü, Bölüm 8'de (Agent'ın Sürekli Evrimi) sistematik olarak ele alınır.
 
 ## Araç Sınıflandırması
 
-Bölüm 1, Agent araçlarının beş kategorisini tanıttı (Algı, Yürütme, İş Birliği, Olay Tetikleyici, Kullanıcı İletişimi). Tasarımlarının nasıl farklılaştığını görmek için, her kategoriyi iki özellik boyunca inceleyin: **Çağırma Yönü** (etkileşimi kimin başlattığı) ve **Eylemin Hedefi** (etkileşimin neyi etkilediği). Bu iki sütunun bir çapraz sınıflandırma çerçevesi oluşturmadığına dikkat edin—her kategorinin "Eylemin Hedefi" için kendi belirli değeri vardır; bunlar yalnızca okuyucuların her kategoriyi bir bakışta konumlandırmasına yardımcı olur. Tablo 4-1, sonraki tasarım tartışmalarını kuran, beş kategori için her iki özelliği de özetler.
+Bölüm 1, Agent araçlarının beş kategorisini tanıttı (Algı, Yürütme, İş Birliği, Kullanıcı İletişimi, Olay Tetikleyici). Tasarımlarının nasıl farklılaştığını görmek için, her kategoriyi iki özellik boyunca inceleyin: **Çağırma Yönü** (etkileşimi kimin başlattığı) ve **Eylemin Hedefi** (etkileşimin neyi etkilediği). Bu iki sütunun bir çapraz sınıflandırma çerçevesi oluşturmadığına dikkat edin—her kategorinin "Eylemin Hedefi" için kendi belirli değeri vardır; bunlar yalnızca okuyucuların her kategoriyi bir bakışta konumlandırmasına yardımcı olur. Tablo 4-1, sonraki tasarım tartışmalarını kuran, beş kategori için her iki özelliği de özetler.
 
 Tablo 4-1 Beş Araç Kategorisi için Çağırma Yönü ve Eylemin Hedefi
 
@@ -20,20 +20,21 @@ Tablo 4-1 Beş Araç Kategorisi için Çağırma Yönü ve Eylemin Hedefi
 | Algı Araçları | Agent aktif olarak çağırır | Bilgi edinme |
 | Yürütme Araçları | Agent aktif olarak çağırır | Dünyayı değiştirme |
 | İş Birliği Araçları | Agent aktif olarak çağırır | Diğer Agent'ları veya insanları yönlendirme |
-| Olay Tetikleyici Araçlar | Agent kaydeder, dış tetikleyiciler | Agent'ı yürütmeye başlaması için tetikleme |
 | Kullanıcı İletişim Araçları | Agent aktif olarak çağırır | Kullanıcıya bilgi iletme |
+| Olay Tetikleyici Araçlar | Agent kaydeder, dış tetikleyiciler | Agent'ı yürütmeye başlaması için tetikleme |
+
 
 **Algı Araçları (Perception Tools)**, bir Agent'ın bilgi edinmesinin ve dünyayı algılamasının aktif yoludur. Örnekler arasında web arama araçları (`web_search`), iç bilgi tabanı retrieval araçları (`knowledge_base_search`), web sayfası okuma araçları (`fetch_url`), dosya adı arama araçları (`find_file`), dosya içeriği arama araçları (`grep_file`) ve dosya okuma araçları (`read_file`) bulunur. Algı araçları için kilit tasarım hususları granülarite ödünleşimleri ve çıktı bilgisi miktarını kontrol etmektir.
 
 **Yürütme Araçları (Execution Tools)**, bir Agent'ın dış dünyayı değiştirmesinin yoludur. Örnekler arasında komut satırı araçları (`shell_exec`), kod yorumlayıcı araçları (`code_interpreter`), dosya yazma araçları (`write_file`), dosya düzenleme araçları (`edit_file`) ve e-posta gönderme araçları (`send_email`) bulunur. Algı araçlarından farklı olarak, yürütme araçlarındaki hataların maliyeti son derece yüksek olabilir, bu da güvenlik kısıtlarını tasarımlarının özü haline getirir.
 
-**İş Birliği Araçları (Collaboration Tools)**, bir Agent'ın diğer Agent'lar ve insanlarla iş birliği yapmasının yoludur. Örnekler arasında bir alt Agent oluşturma (`spawn_subagent`), bir alt Agent'a mesaj gönderme (`send_message_to_subagent`) ve bir alt Agent'ı iptal etme (`cancel_subagent`) bulunur. Bir Agent'ın iş birliğine ihtiyaç duymasının en basit nedeni paralelliktir—örneğin, birkaç OpenAI kurucu ortağını aynı anda araştırmak. Daha derin neden ise uzmanlaşmadır: daha iyi sonuçlar elde etmek için farklı görevlere farklı modeller, araçlar, prompt'lar ve context'ler vermek. Bölüm 10, multi-agent mimarilerini daha ileri düzeyde tartışacak.
-
-**Olay Tetikleyici Araçlar (Event-Triggered Tools)**, dış dünyanın bir Agent'ın eylemlerini yönlendirmesinin yoludur. Örnekler arasında bir zamanlayıcı ayarlama (`set_timer`), arka plan komut satırı görevlerini izleme (`monitor_shell`) ve dış olay kaynaklarına bağlanma (`connect_channel`) bulunur. Bu araçlar iki anı içerir: **Kayıt**, Agent'ın hangi olaylarla ilgilendiğini bildirmek için aracı aktif olarak çağırdığı an; ve **Tetiklenme**, dış bir olayın Agent'ı işlemeye başlaması için asenkron olarak geri çağırdığı an—bu, Tablo 4-1'deki "Agent kaydeder, dış tetikleyiciler" ifadesinin anlamıdır. Olay tetikleyici araçlar olmadan, bir Agent yalnızca bir kullanıcı bir konuşma başlattığında pasif olarak yanıt verebilir, belirli bir zamanda otonom olarak hareket edemez veya yeni e-postalar veya sistem uyarıları gibi dış olaylara tepki veremez.
+**İş Birliği Araçları (Collaboration Tools)**, bir Agent'ın diğer Agent'lar ve insanlarla iş birliği yapmasının yoludur. Örnekler arasında bir alt Agent oluşturma (`spawn_subagent`), bir alt Agent'a mesaj gönderme (`send_message_to_subagent`), bir alt Agent'ı iptal etme (`cancel_subagent`) ve sistemde kullanılabilir Agent'ları keşfetme (`list_agents`) bulunur. Bir Agent'ın iş birliğine ihtiyaç duymasının en basit nedeni paralelliktir—örneğin, birkaç OpenAI kurucu ortağını aynı anda araştırmak. Daha derin neden ise uzmanlaşmadır: daha iyi sonuçlar elde etmek için farklı görevlere farklı modeller, araçlar, prompt'lar ve context'ler vermek. Bölüm 10, multi-agent mimarilerini daha ileri düzeyde tartışacak.
 
 **Kullanıcı İletişim Araçları (User Communication Tools)**, bir Agent'ın kullanıcıya bilgi iletmesinin aktif yoludur. Örnekler arasında bir kullanıcı mesajına yanıt verme (`reply_to_user`), yapılandırılmış bir kart mesajı gönderme (`send_card_to_user`) ve bir kullanıcı bildirim uyarısı gönderme (`send_user_notification`) bulunur. Bir Agent ile kullanıcı arasındaki iletişim, tek bir oturum içindeki basit bir soru-cevaptan çok kanallı asenkron mesajlaşmaya genişlediğinde, "konuşmanın" kendisinin açık bir araç çağrısı haline gelmesi gerekir.
 
-İlk üç araç kategorisi Agent tarafından aktif olarak çağrılır ve tasarımları aşağıda ayrıntılı olarak tartışılacaktır. Olay Tetikleyici Araçların ve Kullanıcı İletişim Araçlarının tasarımı, bu bölümün ilerleyen kısımlarında "Olay Güdümlü Asenkron Agent'lar" bölümünde ele alınacak olay güdümlü asenkron mimariden ayrılamaz. Önce, tüm araçlara uygulanabilir evrensel tasarım ilkelerini tanıtıyoruz.
+**Olay Tetikleyici Araçlar (Event-Triggered Tools)**, dış dünyanın bir Agent'ın eylemlerini yönlendirmesinin yoludur. Örnekler arasında bir zamanlayıcı ayarlama (`set_timer`), arka plan komut satırı görevlerini izleme (`monitor_shell`) ve dış olay kaynaklarına bağlanma (`connect_channel`) bulunur. Bu araçlar iki anı içerir: **Kayıt**, Agent'ın hangi olaylarla ilgilendiğini bildirmek için aracı aktif olarak çağırdığı an; ve **Tetiklenme**, dış bir olayın Agent'ı işlemeye başlaması için asenkron olarak geri çağırdığı an—bu, Tablo 4-1'deki "Agent kaydeder, dış tetikleyiciler" ifadesinin anlamıdır. Olay tetikleyici araçlar olmadan, bir Agent yalnızca bir kullanıcı bir konuşma başlattığında pasif olarak yanıt verebilir, belirli bir zamanda otonom olarak hareket edemez veya yeni e-postalar veya sistem uyarıları gibi dış olaylara tepki veremez.
+
+İlk dört araç kategorisi Agent tarafından aktif olarak çağrılır ve tasarımları aşağıda ayrıntılı olarak tartışılacaktır. Olay Tetikleyici Araçların tasarımı, bu bölümün ilerleyen kısımlarında "Olay Güdümlü Asenkron Agent'lar" bölümünde ele alınacak olay güdümlü asenkron mimariden ayrılamaz. Önce, tüm araçlara uygulanabilir evrensel tasarım ilkelerini tanıtıyoruz.
 
 ## Araç Tasarımının Evrensel İlkeleri
 
@@ -50,7 +51,7 @@ Bu biçimler arasında seçim üç boyuta bağlıdır.
 
 - **Parametre Karmaşıklığı**: İç içe nesneler, çok alanlı ortak doğrulama veya karmaşık tip kısıtları içeren işlemler için, özel bir aracın yapılandırılmış şeması modeli parametreleri doğru biçimde geçirmeye daha iyi yönlendirir; basit parametreli işlemler için, bunları CLI komutları aracılığıyla geçirmek eşit derecede güvenilirdir.
 - **Değişim Sıklığı**: Sık değişen yetenekleri Skills olarak korumak çok daha ucuzdur—bir metin parçasını düzenlemek, kodu değiştirip yeniden test edip yeniden dağıtmaktan daha iyidir. Kararlı, düşük seviyeli işlemler özel araçlara aittir.
-- **Model Yeteneği**: En son teknoloji (SOTA) modeller Skills + Genel Yürütücüler yaklaşımını kullanarak daha fazla yetenek ifade edebilir ve araç sayısını azaltabilir; daha zayıf modeller doğru çağırmayı yönlendirmek için yapılandırılmış araç şemalarına ihtiyaç duyar. Bölüm 8, bir Agent'ın kendi kendine evrim sırasında yeni yetenekleri pekiştirirken aynı seçimi nasıl yaptığını tartışacak.
+- **Model Yeteneği**: En son teknoloji (SOTA) modeller Skills + Genel Yürütücüler yaklaşımını kullanarak daha fazla yetenek ifade edebilir ve araç sayısını azaltabilir; daha zayıf modeller doğru çağırmayı yönlendirmek için yapılandırılmış araç şemalarına ihtiyaç duyar. Bölüm 8, bir Agent'ın sürekli evrim sırasında yeni yetenekleri pekiştirirken aynı seçimi nasıl yaptığını tartışacak.
 
 ### Araç Granülaritesinde Ödünleşimler: Entegrasyon ve Ayrım
 
@@ -120,9 +121,16 @@ MCP'nin ekosistem değeri **bir kez geliştir, her yerde kullan**dır. Bir MCP s
 
 MCP, pratikte üç kademeli zorlukla karşı karşıyadır: senkron çağrıların sınırlamaları, çok fazla araç olduğunda context ek yükü ve araç yeteneklerinin yeniden kullanılabilir bilgiye nasıl pekiştirileceği.
 
-**MCP'nin Sınırlamaları**. MCP'nin araç çağırması esas olarak **istek-yanıttır**—istemci bir çağrı başlatır ve sunucunun sonuçları döndürmesini bekler. Protokolün kendisi birkaç uzatma ilkeli sağlar: kaynak güncelleme bildirimleri sunucunun istemciye bir kaynağın değiştiğini bildirmesine izin verir, yürütme ilerlemesi uzun görevlerin sürekli olarak ilerleme raporlamasına izin verir, sampling sunucunun istemcinin modelinden tamamlamalar istemesine izin verir ve elicitation araçların yürütme sırasında kullanıcıdan ek girdi istemesine izin verir. Ancak, bu ilkellerin tümü **tek bir kalıcı oturum içinde** çalışır—bir bildirim istemciye "kaynak değişti" diyebilir, ama Agent'ın düşünme döngüsünü tetiklemenin standart bir yolu yoktur, şu anda çalışmayan bir Agent'ı uyandırmak bir yana. Oturumlara yayılan, birden fazla olay kaynağını ele alan ve çevrimdışı uyanmayı destekleyen bir olay güdümlü Agent mimarisi—her an gelen yeni e-postalar, her an geri çağıran dış sistemler, hiçbir oturum canlı değilken uyandırılan Agent—hâlâ protokolün üzerine inşa edilmelidir. Bu bölümün ikinci yarısının olay güdümlü mimariye adanmasının tam olarak nedeni budur. İnşa katmanlıdır: MCP tek bir araç çağrısı için etkileşimi standartlaştırır ve onun üzerindeki Agent çerçevesi, çok sayıda çağrı genelinde zamanlamayı, eşzamanlılığı ve dış olay kaynaklarının entegrasyonunu yönetmek için bir olay kuyruğu kullanır. Bu bölümdeki sonraki asenkron deneyler bu katmanlı tasarım üzerine inşa edilir.
+**MCP'nin Sınırlamaları**. MCP'nin odağı, Agent'lar ile dış yetenekler arasındaki etkileşimi standartlaştırmaktır; eksiksiz bir olay çalışma zamanı sağlamak değildir. Protokol çok turlu etkileşimleri, değişiklik aboneliklerini ve uzun süren görevleri zaten destekleyebilir, ancak bu mekanizmalar “tek bir iş akışı nasıl devam eder?” sorusunu yanıtlar; Agent'ı sürekli çevrimiçi tutmaz. Oturumlar arasında çalışan, birden çok olay kaynağını birleştiren ve etkin olmayan bir Agent'ı uyandıran mimari—örneğin yeni e-posta geldiğinde Agent'ı başlatmak veya dış sistemin geri çağrısından sonra görevi sürdürmek—hâlâ protokolün üzerinde kurulmalıdır[^ch4-mcp-current]. Sorumluluklar katmanlara ayrılır: MCP yetenek çağrılarını standartlaştırır; Agent çerçevesi olay alımını, zamanlamayı, eşzamanlılığı ve uyandırmayı yönetir. Bu bölümün ikinci yarısı bu üst katmanı ele alır.
+
+[^ch4-mcp-current]: Model Context Protocol, “2026-07-28 Specification”. https://modelcontextprotocol.io/specification/2026-07-28
 
 **MCP araçları için context ek yükü yönetimi**. MCP ekosisteminin hızlı genişlemesi bir mühendislik sorunu getiriyor: yalnızca 5 MCP sunucusu on binlerce token'lık araç tanımı ek yükü getirebilir (belirli sunuculara bağlı olarak yaklaşık 55.000 token), konuşma daha başlamadan 200K'lık bir context penceresinin neredeyse %30'unu tüketir. Cursor, pratikte bir hafifletme stratejisini doğruladı: araç açıklamalarını bir klasöre senkronize edin, burada Agent varsayılan olarak yalnızca bir araç adları indeksini görür ve gerektiğinde belirli tanımları sorgular. A/B testi, bu yaklaşımın MCP araçlarıyla ilgili görevler için toplam token tüketimini %46,9 azalttığını gösterdi. Bu "context arayüzü olarak dosya sistemi" yaklaşımı, Bölüm 2'de tartışılan KV Cache dostu tasarım ilkeleriyle (girdi formatlarını önceki hesaplama sonuçlarını yeniden kullanmak ve çıkarım maliyetlerini azaltmak için makul biçimde organize etmek) ve Skills'in kademeli açığa çıkarma mekanizmasıyla (tüm bilgiyi modele bir kerede göstermek yerine, ihtiyaç halinde adım adım sağlamak) uyumludur—varsayılan olarak daha az verin, ihtiyaç halinde yükleyin.
+
+Pi Coding Agent bu fikri daha agresif bir mimari ödünleşime dönüştürür: çekirdeği kasıtlı olarak MCP içermez. Yetenekleri README'li CLI araçları olarak paketlemeyi ve Skills aracılığıyla ihtiyaç halinde yüklemeyi önerir; MCP ekosistemine erişim gerçekten gerektiğinde ise bunu bir uzantı sağlayabilir[^ch4-pi-no-mcp]. Topluluk uzantısı `pi-mcp-adapter` bir orta yol gösterir: model varsayılan olarak yalnızca yaklaşık 200 token'lık tek bir vekil araç görür, arka uçtaki araçları "ara → tanımı incele → çağır" yoluyla ihtiyaç halinde keşfeder ve MCP sunucusu ilk kullanıma dek başlatılmaz[^ch4-pi-mcp-adapter]. Bu örnek, **MCP'yi birlikte çalışabilirlik protokolü olarak kullanıp kullanmamanın** ve **oturum başlangıcında tüm MCP araç tanımlarını açığa çıkarıp çıkarmamanın** iki ayrı karar olduğunu gösterir: arka uç MCP'nin ekosistem uyumluluğunu korurken, ön uç kademeli açığa çıkarma için CLI + Skills veya bir vekil araç kullanabilir, böylece her yeni sunucuyla context ve token ek yükünün birlikte şişmesi önlenir.
+
+[^ch4-pi-no-mcp]: Pi Coding Agent, “Philosophy: No MCP,” https://github.com/earendil-works/pi/tree/main/packages/coding-agent#philosophy; Mario Zechner, “What if you don’t need MCP at all?”, 2025-11-02. https://mariozechner.at/posts/2025-11-02-what-if-you-dont-need-mcp/; ayrıca Pi sunumunda 21:25'ten itibaren başlayan tartışmaya bakın: https://www.youtube.com/watch?v=Dli5slNaJu0&t=1285s (Bilibili yansısı: https://www.bilibili.com/video/BV1M7796VEHj/)
+[^ch4-pi-mcp-adapter]: `pi-mcp-adapter`, “Why This Exists” ve “Quick Start,” https://github.com/nicobailon/pi-mcp-adapter
 
 **Hiyerarşik organizasyon ve dinamik araç keşfi**. Araç açıklamalarını ihtiyaç halinde yüklemenin ötesinde, araç sayısı yüzlere ulaştığında, hiyerarşik bir organizasyon düz bir listeden daha etkilidir. Etkili bir yaklaşım **bilgi kaynağı türüne göre kategorizasyondur**:
 
@@ -133,7 +141,9 @@ MCP, pratikte üç kademeli zorlukla karşı karşıyadır: senkron çağrılar�
 
 Sınıflandırma yapısını system prompt'ta açıkça belirtmek, LLM'in ilgili araç grubunu hızlıca bulmasına yardımcı olabilir. İleri bir adım, "Araç Tasarımının Evrimi"nde ön izlemesi yapılan **dinamik araç keşfidir**: tüm araç tanımlarını bir kerede context'e enjekte etmek yerine, Agent araç tanımlarını arama yoluyla ihtiyaç halinde keşfeder (bu bölümün "Proaktif Araç Keşfi" bölümünde ayrıntılı olarak ele alınır). Mevcut araçlar yüzlere ulaştığında, bunları context'e düzleştirmek token israf eder ve karar almayı engeller. Anthropic'in deneyleri, bu ihtiyaç halinde getirme yaklaşımının Opus 4'ün araç kullanım benchmark'larındaki doğruluğunu %49'dan %74'e iyileştirdiğini gösterdi.
 
-**MCP'den Skills'e: Çok fazla araç sorununu çözmek**. MCP **birlikte çalışabilirliği** çözer (bir kez geliştir, her yerde kullan), Skills ise **seçim aşırı yüklenmesini** çözer: mevcut araçlar bir düzineden yüzlere büyüdüğünde, model düz bir araç listesinden doğru seçimi yapmakta giderek zorlanır. Bölüm 2'de tanıtılan Agent Skills, çok sayıda özelleşmiş aracı, az sayıda genel araç artı ihtiyaç halindeki bilgi dokümanlarıyla değiştirir, "araç seçimi" sorununu temelden LLM'lerin üstün olduğu bir "bilgi getirme" sorununa dönüştürür. Belirli bir yeteneğin özel bir MCP aracı olarak mı yoksa bir Skill artı genel bir yürütücü olarak mı uygulanması gerektiğine gelince, bu bölümün başındaki "Yetenek İfade Biçimini Seçmek" bölümünde verilen üç boyutlu karar çerçevesi (parametre karmaşıklığı, değişim sıklığı, model yeteneği) hâlâ geçerlidir.
+**MCP'den Skills'e: Çok fazla araç sorununu çözmek**. MCP **birlikte çalışabilirliği** çözer (bir kez geliştir, her yerde kullan), Skills ise **seçim aşırı yüklenmesini** çözer: mevcut araçlar bir düzineden yüzlere büyüdüğünde, model düz bir araç listesinden doğru seçimi yapmakta giderek zorlanır. Bölüm 2'de tanıtılan Agent Skills, çok sayıda özelleşmiş aracı, az sayıda genel araç artı ihtiyaç halindeki bilgi dokümanlarıyla değiştirir, "araç seçimi" sorununu temelden LLM'lerin üstün olduğu bir "bilgi getirme" sorununa dönüştürür. İki yaklaşım birbirini tamamlar: Skills yetenekleri düzenler ve kademeli olarak açığa çıkarır; bu yetenekler MCP üzerinden keşfedilebilir veya sunulabilir. MCP ise istemciler arasında birlikte çalışabilirlik sağlar[^ch4-skills-over-mcp]. Belirli bir yeteneğin özel bir MCP aracı olarak mı yoksa bir Skill artı genel bir yürütücü olarak mı uygulanması gerektiğine gelince, bu bölümün başındaki "Yetenek İfade Biçimini Seçmek" bölümünde verilen üç boyutlu karar çerçevesi (parametre karmaşıklığı, değişim sıklığı, model yeteneği) hâlâ geçerlidir.
+
+[^ch4-skills-over-mcp]: Model Context Protocol, “Build an MCP server with Agent Skills” ve “Skills over MCP Working Group”. https://modelcontextprotocol.io/docs/2026-07-28/develop/build-with-agent-skills; https://modelcontextprotocol.io/community/working-groups/skills-over-mcp
 
 **MCP'nin güven modeli ve güvenlik riskleri**. MCP, üçüncü taraf araçları entegre etmeyi eşi görülmemiş derecede kolaylaştırır, ama entegre edilen her MCP sunucusu, Agent'ın context'ine kontrolünüz dışındaki bir metin parçası enjekte eder ve genellikle başka birine bir kimlik bilgisi devreder. Dört ana risk türü vardır.
 
@@ -162,6 +172,7 @@ Algı araçları sıklıkla, Agent'ın işleyebileceğinden çok daha fazla bilg
 > ![Şekil 4-1: MCP Protokolü Etkileşim Sırası](images/fig4-1.svg)
 >
 >
+>
 > Bu deney, aşağıdaki beş algı senaryosu kategorisini kapsayan bir dizi algı aracı MCP sunucusu inşa eder:
 >
 > - **Arama**: Web arama, yerel bilgi tabanı arama, dosya indirme
@@ -172,7 +183,15 @@ Algı araçları sıklıkla, Agent'ın işleyebileceğinden çok daha fazla bilg
 >
 > Bu araçların çoğu ücretsiz, açık API'lere dayanır ve kayıt olmadan kullanılabilir. MCP ekosisteminde zaten birçok hazır algı aracı sunucusu mevcuttur. Bölüm 5, bu işlevselliklerin çoğunun yedi temel araç ile Skill dokümanlarının birleşimiyle kapsanabileceğini gösterecek.
 
+### Çok Modlu Algı
+
+Görüntüleri, videoyu, sesi ve PDF'leri anlayabilmek için Agent'ın çok modlu algıya ihtiyacı vardır. Üç yol vardır: modelin yerel çok modlu işlemesi, içeriği otomatik olarak metne çıkarmak ve çok modlu modeli araç olarak sarmalamak.
+
+Yerel işleme en yüksek yetenek tavanına sahiptir; Vision Transformer gibi kodlayıcılar farklı verileri ortak bir anlamsal uzaya eşler. Metin çıkarma, yerel desteği olmayan modeller ve metin ağırlıklı PDF'ler için daha az token kullanır, ancak düzeni, grafikleri ve görüntüleri kaybeder. Ana model çok modlu değilse `analyze_image`, `analyze_pdf` ve `analyze_audio` gibi araçlar dosyayı ve soruyu uzman bir modele aktararak bağlamda yalnızca kısa bir sonuç tutabilir.
+
 ## Yürütme Araçları
+
+Güncellenen güvenlik tasarımı düşük riskli Agent'lar için süreç düzeyi izolasyonu, güvenilmeyen girdiler için container veya microVM'i ve her katmanda kaynak kotalarını kullanır. Hafif Sidecar, yapılandırılmış araç çağrısını yürütme geçidi olarak denetler; art arda retlerde devre kesici çalıştırılıp kullanıcı kararına dönülmelidir. İdempotent olmayan işlemler “ön kontrol–onay” olmak üzere iki aşamalıdır.
 
 Algı araçları Agent'ın "duyularıysa", yürütme araçları onun "el ve ayaklarıdır". Ama algı araçlarından farklı olarak, yürütme araçları pahalı biçimde başarısız olabilir: yanlışlıkla silinen bir dosya sonsuza dek gider, kötü bir sistem komutu bir servisi çökertebilir, yanlış değerlendirilmiş bir API çağrısı gerçek para kaybettirebilir. Bu yüzden tasarımları **yetenek açıklığı** ile **güvenlik kısıtları** arasında hassas bir denge kurmalıdır.
 
@@ -295,35 +314,19 @@ Alt Agent'ların temel değeri **iş bölümü yoluyla uzmanlaşmada** yatar—h
 
 **Çıktı formatı standartlaştırılmalıdır.** Tekdüze bir JSON yapısı, ana Agent'ın ayrıştırma yükünü azaltır ve hata yönetimini daha güvenilir kılar.
 
-**Alt Agent'lar için Context Hazırlamak.**
-
-
-![Şekil 4-2: Alt Agent Context Geçirme Stratejileri](images/fig4-2.svg)
-
-
-Ana Agent bir alt Agent'ı çağırdığında, ne kadar context geçirmelidir? Çok azı alt Agent'ı bilgiden yoksun bırakır; çok fazlası token israf eder, anlama yükü ekler ve özel bilgi sızdırma riski taşır. Artan sofistikasyon sırasına göre dört strateji:
-
-**Minimal Geçirme**: Alt Agent yalnızca çağrı parametrelerini alır (örn. "12345 siparişinin durumunu sorgula"), önceki konuşma geçmişinden tamamen habersizdir. Bu yöntem gizliliği korur ama yetersiz bilgiye yol açabilir.
-
-**Elle Filtrelenmiş Geçirme**: Ana Agent paylaşılacak context'i açıkça belirtir (örn. "Kullanıcının bölgesi: ABD", "Konuşma özeti: Kullanıcı iade politikasını soruyor"). Bu daha esnektir ama prompt'un tasarım karmaşıklığını artırır.
-
-**Otomatik Kırpılmış Geçirme**: Sistem kuralları context'i otomatik olarak filtreler (örn. "Kullanıcının temel bilgisi + son 3 tur konuşma + ilgili araç sonuçları"). Bu, bilgi yeterliliğini ve verimliliği dengeler ama önceden tanımlanmış kırpma kuralları gerektirir.
-
-**LLM Tarafından Üretilen Context**: Ana Agent'ın trajectory'sini, iş kuralı prompt'larını ve alt Agent'ın görev tanımını girdi olarak alıp yapılandırılmış bir context nesnesi dinamik olarak üretmek için ek bir LLM çağrısı yapılır. Bu en esnek ve akıllı yöntemdir. İş kuralları gizlilik korumasını ("Ödeme bilgisini geçirme") ve sıkıştırma stratejilerini ("10 turdan fazlaysa yalnızca özeti geçir") içerebilir, ama ekstra bir LLM çağrısının maliyetine yol açar.
-
-Pratikte, karmaşıklığa göre seçin: basit, yüksek sıklıklı çağrılar (hava durumunu kontrol etme, hesap makinesi) minimal geçirme kullanır; karmaşık görevler (rapor üretme, müşteri hizmetleri) LLM tarafından üretilen context kullanır; orta karmaşıklıktaki görevler varsayılan olarak otomatik kırpma kullanır.
-
 **Agent'lar Arası İş Birliği Mekanizmaları.**
 
-Oluşturma (`spawn_subagent`), iletişim (`send_message_to_subagent`) ve iptal etme (`cancel_subagent`) ilkel araçları üzerine inşa edilerek, çeşitli iş birliği modları desteklenebilir: **Senkron Çağrı** (alt Agent'ın dönüşünü bekler, hızlı görevler için uygundur), **Asenkron Çağrı** (hemen bir görev ID'si alır, tamamlandığında bir olay aracılığıyla bildirilir), **Akış İş Birliği** (alt Agent sürekli olarak artımlı mesajlar gönderir, sürecin kendisinin değerli olduğu senaryolar için uygundur) ve **Çok Turlu Etkileşim** (alt Agent'ın proaktif olarak sorular sorduğu ve ana Agent'ın yanıt verdiği konuşmalı bir iş birliği). Bu bölüm, bu modlar için paylaşılan araç arayüzlerine ve yukarıda tartışılan context geçirme stratejilerine odaklanır; hangi iş birliği modunun seçileceği ve birden fazla Agent arasındaki topolojinin ve iş bölümünün nasıl organize edileceği, Bölüm 10'da ayrıntılı olarak ele alınan multi-agent iş birliği mimarisinin kapsamına girer.
+İş birliği araçlarının arayüzleri üç ilkel grubuna indirgenebilir. **Birincisi, başlatma ve iptal etme**: `spawn_subagent` bir alt Agent oluşturur ve ona bir görev atar; `cancel_subagent`, görev anlamını yitirdiğinde (kullanıcı fikrini değiştirdi, başka bir alt Agent cevabı zaten buldu) onu zamanında sonlandırır, daha fazla token israfını önler. **İkincisi, mesaj geçirme**: `send_message_to_subagent`, alt Agent çalışırken ona ek talimatlar veya takip soruları gönderir; alt Agent da ilerleme bildirmek veya açıklama istemek için ana Agent'a geri mesaj gönderebilir. **Üçüncüsü, keşif**: aynı anda birden fazla Agent çalıştıran bir sistemde, `list_agents` o an kullanılabilir Agent'ları sorumluluk açıklamaları ve çalışma durumlarıyla birlikte listeler, bir Agent'ın potansiyel iş birlikçilerini bulmasını sağlar—bu, MCP'nin kullanılabilir araçları listelemek için `tools/list` kullanmasıyla aynı fikirdir, yalnızca burada listelenenler Agent'lardır.
+
+Bu ilkeller üzerine inşa edilerek, çeşitli iş birliği modları desteklenebilir: **Senkron Çağrı** (alt Agent'ın dönüşünü bekler, hızlı görevler için uygundur), **Asenkron Çağrı** (hemen bir görev ID'si alır, tamamlandığında bir olay aracılığıyla bildirilir), **Akış İş Birliği** (alt Agent sürekli olarak artımlı mesajlar gönderir, sürecin kendisinin değerli olduğu senaryolar için uygundur) ve **Çok Turlu Etkileşim** (alt Agent'ın proaktif olarak sorular sorduğu ve ana Agent'ın yanıt verdiği konuşmalı bir iş birliği). Bu bölüm, bu modlar için paylaşılan araç arayüzlerine odaklanır; bir alt Agent'ı çağırırken hangi context'in geçirileceği, hangi iş birliği modunun seçileceği ve birden fazla Agent arasındaki topolojinin ve iş bölümünün nasıl organize edileceği, Bölüm 10'da ayrıntılı olarak ele alınan multi-agent iş birliği mimarisinin kapsamına girer.
 
 **İnsan Müdahalesinin Sanatı.**
 
-Yapay Zeka Ajanları giderek güçlense de, insan müdahalesi belirli kritik karar noktalarında hâlâ gereklidir—bazı yargılar doğası gereği insan değerlerini, sağduyuyu veya alan uzmanlığını gerektirir.
+AI Agent'lar giderek güçlense de, insan müdahalesi belirli kritik karar noktalarında hâlâ gereklidir—bazı yargılar doğası gereği insan değerlerini, sağduyuyu veya alan uzmanlığını gerektirir.
 
 **Zaman Aşımı ve Bozulma Stratejileri.** Bir HITL (Human-In-The-Loop—Agent'ın karar akışına bir insan inceleme adımı ekleme) isteği anında bir yanıt alamayabilir, bu yüzden zaman aşımı eşikleri ve varsayılan davranışlar belirleyin: "5 dakika içinde yanıt yoksa, muhafazakâr stratejiyi benimse." Öncelik kuyrukları da yardımcı olur: acil istekler birden fazla kanalda bildirim yapar; rutin istekler bir e-posta alır.
 
-**Bir Geri Bildirim Döngüsü Kurmak.** HITL tek seferlik bir etkileşim olmamalı, bir öğrenme döngüsü oluşturmalıdır. İnsan onay/ret kararlarını ve nedenlerini kaydetmek, Bölüm 1'de tanıtılan öğrenme paradigmalarından yararlanabilir (Bölüm 8'de ayrıntılı olarak ele alınır): **Post-training**, HITL verisini denetimli bir öğrenme veri kümesine dönüştürür, modelin karar kalıplarını içselleştirmesine izin verir; **Externalized learning**, karar durumlarını bir bilgi tabanında yapılandırılmış bir formatta depolar, Agent'ın yeni kararlarla karşılaştığında benzer durumları getirerek yargıya yardımcı olmasına izin verir. İkincisinin avantajı açıklanabilirliktir—Agent "Benzer bir durumun kararına dayanarak (Durum ID 123), şunu önerilir..." diye alıntı yapabilir.
+**Bir Geri Bildirim Döngüsü Kurmak.** HITL tek seferlik bir etkileşim olmamalı, bir öğrenme döngüsü oluşturmalıdır. İnsanların onayları, retleri ve bunların gerekçeleri önce kanıta dayalı geri bildirim verisi oluşturur: genellenebilir yargı ilkeleri deneyim bilgisine veya bir Skill'e eklenebilir; yüksek boyutlu, örtük tercihler ise post-training verisine dönüştürülebilir. Bölüm 8 bu trajectory'lerin nasıl değerlendirileceğini ve güncelleme taşıyıcısının nasıl seçileceğini tartışır. Hangi yöntem kullanılırsa kullanılsın, tek bir insan yargısı önce genellenmeden doğrudan evrensel bir kurala dönüştürülmemelidir.
 
 > **Deney 4-3 ★★: İş Birliği Aracı MCP Sunucusu**
 >
@@ -331,14 +334,14 @@ Yapay Zeka Ajanları giderek güçlense de, insan müdahalesi belirli kritik kar
 >
 > **Alt Agent Yönetim Araçları.**
 >
-> - **Alt Agent Oluştur** (`spawn_subagent`), **Mesaj Gönder** (`send_message_to_subagent`), **Alt Agent'ı İptal Et** (`cancel_subagent`): Hem senkron hem de asenkron çağırma modlarını destekler; asenkron mod bir görev ID'si döndürür
+> - **Alt Agent Oluştur** (`spawn_subagent`), **Mesaj Gönder** (`send_message_to_subagent`), **Alt Agent'ı İptal Et** (`cancel_subagent`), **Sonucu Al** (`get_subagent_status`): Hem senkron hem de asenkron çağırma modlarını destekler; asenkron mod hemen bir görev ID'si döndürür ve görev tamamlandıktan sonra sonuç bu ID ile alınır
 >
 > **İnsan İş Birliği Araçları.**
 >
 > - **Yönetici Yardımı İste** (`request_human_approval`, `request_human_input`): Kilit kararlardan önce onay veya ek bilgi girdisi ister, zaman aşımlarını ve varsayılan davranışları destekler
 > - **Bildirim Araçları** (`send_im_notification`, `send_email_notification`, `send_slack_message`): Çok kanallı bildirimler
 >
-> **Deney Gereksinimleri**: akıllı iş birliği stratejileri tasarlayın—alt Agent'lar için en az iki context geçirme stratejisi (örn. minimal geçirme ve LLM tarafından üretilen context) uygulayın ve etkilerini karşılaştırın; Agent'ın HITL'in ne zaman gerekli olduğunu tanıyıp proaktif olarak onay veya girdi istemesi için system prompt'lar yazın; zaman aşımı mekanizmalarını ve çok kanallı bildirimleri uygulayın.
+> **Deney Gereksinimleri**: akıllı iş birliği stratejileri tasarlayın—alt Agent'lara context geçirmek için en az iki yol uygulayın ve etkilerini karşılaştırın—örneğin minimal geçirme (yalnızca görev parametrelerini geçirin) ve LLM tarafından üretilen context (ana Agent'ın trajectory'sinden bir devir context'i damıtmak için ek bir LLM çağrısı yapın); Agent'ın HITL'in ne zaman gerekli olduğunu tanıyıp proaktif olarak onay veya girdi istemesi için system prompt'lar yazın; zaman aşımı mekanizmalarını ve çok kanallı bildirimleri uygulayın.
 
 ## Olay Güdümlü Asenkron Agent'lar
 
@@ -354,11 +357,13 @@ Asenkronluğun neden gerekli olduğunu açıklamak için bir benzetmeyle başlay
 
 Ancak asenkron paradigma, günümüz LLM'leri hakkındaki temel bir gerçekle çarpışır: eğitimleri senkronluğu varsayar—bir tool call'dan sonra, bir sonraki mesaj araç sonucu olmalıdır—gerçek dağıtım ise asenkronluğu talep eder: kullanıcılar istedikleri zaman kesintiye uğratır, görevler eş zamanlı ilerler ve dış olaylar bir araç dönmeden önce gelir. Bu "senkron eğitim / asenkron dağıtım" çelişkisi, bu bölümün geri kalanındaki her mühendislik ödünleşimine nüfuz eder.
 
-Bunun için, bir **olay güdümlü asenkron Agent mimarisine** ihtiyacımız var. Teknik olarak, bu, sistemin artık aktif ve tekrar tekrar "yeni mesajları" kontrol etmediği (bu polling'dir, verimsizdir), bunun yerine yeni bir mesaj geldiğinde işleme mantığını otomatik olarak tetiklediği anlamına gelir. Tüm girdiler, çıktılar, düşünce süreçleri ve dış etkileşimler tek biçimli olarak bir olay akışı—bir zaman çizelgesinde düzenlenmiş bir olay kayıtları dizisi—olarak modellenir. Şekil 4-3, olay güdümlü asenkron bir Agent'ın genel mimarisini gösterir, olay kaynakları, olay kuyruğu ve Agent işleme akışı arasındaki ilişkiyi resmeder.
+Bunun için, bir **olay güdümlü asenkron Agent mimarisine** ihtiyacımız var. Teknik olarak, bu, sistemin artık aktif ve tekrar tekrar "yeni mesajları" kontrol etmediği (bu polling'dir, verimsizdir), bunun yerine yeni bir mesaj geldiğinde işleme mantığını otomatik olarak tetiklediği anlamına gelir. Tüm girdiler, çıktılar, düşünce süreçleri ve dış etkileşimler tek biçimli olarak bir olay akışı—bir zaman çizelgesinde düzenlenmiş bir olay kayıtları dizisi—olarak modellenir. Şekil 4-2, olay güdümlü asenkron bir Agent'ın genel mimarisini gösterir, olay kaynakları, olay kuyruğu ve Agent işleme akışı arasındaki ilişkiyi resmeder.
 
-![Şekil 4-3: Olay Güdümlü Asenkron Agent Mimarisi](images/fig4-3.svg)
+![Şekil 4-2: Olay Güdümlü Asenkron Agent Mimarisi](images/fig4-2.svg)
 
-### OpenClaw'dan Olay Güdümlü Mimarinin Gerçek Dünya İhtiyacını Anlamak
+### OpenClaw'da Olay Güdümlü Mekanizmaların Uygulanması
+
+Güncellenen metin, Hooks'un OpenClaw'ın iç yaşam döngüsünden geldiğini, Cron ve Heartbeat'in ise zaman güdümlü olduğunu açıklar. Harici e-posta ve API geri çağrıları için PineClaw'daki Channel gibi anlık bir giriş yolu gerekir.
 
 Açık kaynak çerçevesi OpenClaw (mimarisi Bölüm 5'te ayrıntılı olarak ele alınacak), bir Gateway kontrol düzlemi aracılığıyla çok kanallı mesajları alır ve bunları Agent çalışma zamanına yönlendirir. Üç yerleşik otomasyon mekanizması sağlar:
 
@@ -394,6 +399,8 @@ Tasarım açısından, olay tetikleyici araçlar ilgisiz olayların Agent'ı uya
 
 ### Kullanıcı İletişim Araçları
 
+OpenClaw'da oturumlar kullanıcıya şeffaftır; kullanıcı ve Agent özel araçlarla görüntü, dosya, push bildirimi, çok modlu içerik ve Generative UI içeren mesajları her zaman paylaşabilir.
+
 Kullanıcı iletişim araçları, Agent ile kullanıcı arasındaki iletişim kanallarının giderek çeşitlenmesinden doğar. Birçok Agent (Claude Code, Manus, Genspark gibi) yerleşik bir ReAct döngüsü kullanır, burada Agent'ın "söylediği" her şey (yani asistan mesajları) doğrudan kullanıcıya gönderilir, kullanıcının Agent ile konuşmak için uygulamada belirli bir oturum açması gerekir. OpenClaw, bu insan-bilgisayar iletişim paradigmasını bozan en etkili genel amaçlı Agent'lardan biridir: oturumları kullanıcı için şeffaftır—kullanıcının oturumun varlığından haberdar olmasına veya Agent'ın tool call'larının ayrıntılarını umursamasına gerek yoktur; hem kullanıcı hem de Agent her an birbirine mesaj gönderebilir, katı bir kullanıcı-mesajı, Agent-yanıtı kalıbı yerine. Sonuç olarak, birçok kullanıcı OpenClaw'ın bir sekreterin yapacağı gibi asenkron olarak mesaj gönderen "insan benzeri bir varlığa" sahip olduğunu hissediyor. Bu metin mesajları modelin asistan mesajlarının doğrudan kullanıcıya aktarılması değildir; özel araçlar aracılığıyla gönderilir, görüntü ve dosya ekleri taşıyabilir ve aciliyete göre push bildirimlerini tetikleyebilir.
 
 Metin tabanlı iletişimin ötesinde, giderek artan sayıda Agent, yapılandırılmış kart mesajları veya hatırlatma e-postaları gönderme gibi çok modlu iletişim yeteneklerine sahiptir. Bazı Agent'lar, bilgiyi kullanıcılara daha kullanıcı dostu bir şekilde sunmak için HTML veya diğer yöntemleri kullanarak etkileşimli arayüzler oluşturan üretici UI ile deneyler yapmaya başladı. Tasarım açısından, kullanıcı iletişim araçları asenkron mesajlaşmayı desteklemeli (kullanıcı çevrimiçi olmayabilir), okundu/okunmadı durumu izlemesi sağlamalı ve birden fazla kanal arasında mesaj tutarlılığını korumalıdır.
@@ -410,6 +417,8 @@ Kullanıcı iletişim araçları "kullanıcıya nasıl ulaşılacağı" sorununu
 
 ### Sanal Kimlik ve İzole Yürütme Ortamı
 
+Sanal bilgisayar 7/24 çalışabilir, Agent'ın yerel dosyalara serbest erişimini sınırlar ve bir hata en fazla sanal ortamı etkiler. Veriler paylaşılan dosya sistemi ve yol referanslarıyla aktarılır.
+
 Bu bölümün konumu hakkında bir not: sanal kimlik ve izole yürütme ortamları özünde yürütme araçları altında tartışılan sandbox'larla aynı özün parçası olan yürütme ortamı altyapısıdır. Burada, asenkron mimari bölümünde görünmelerinin nedeni, bunlara en acil ihtiyaç duyan Agent'ların bağımsız çalışan, yerleşik kalan ve her an kullanıcı adına hareket eden Agent'lar olmasıdır.
 
 Bu bölümün başında bahsedildiği gibi, *Her*'deki Samantha bağımsız bir kimliğe ve çalışma ortamına sahiptir. Böyle bir genel amaçlı asistan elde etmek, kilit bir mimari seçime zorlar: Agent, kullanıcının kişisel hesaplarını doğrudan mı yönetmeli, yoksa kendi sanal kimliğine mi sahip olmalı? Doğrudan yönetim uygun görünür, ama tek bir Agent hatası veya ele geçirilmesi kullanıcının tüm dijital kimliğini açığa çıkarır. Daha güvenli yaklaşım, bir sekreterin kendi ofis telefonuna ve posta kutusuna sahip olması gibi, Agent'a özel iletişim hesapları, depolama ve hesaplama ortamlarından oluşan bağımsız bir sanal kimlik vermektir, böylece Agent kullanıcı adına açıkça çalışabilir. Açıkça beyan edilen bir kimlik güveni zayıflatmak bir yana, iletişimi daha gerçek kılar.
@@ -425,6 +434,8 @@ Olay tetikleyici araçlar dünyanın Agent'ı uyandırmasına izin verir, kullan
 ### Olay İşleme Mekanizması
 
 Tek bir Agent örneği, eş zamanlı olarak birden fazla olayla karşılaşabilir: kullanıcıdan yeni bir mesaj, bir araçtan bir sonuç, süresi dolan bir zamanlayıcı, başka bir Agent'tan bir iş birliği isteği. Bu olayların ne kadar verimli ve doğru biçimde ele alındığı, performansı ve kullanıcı deneyimini doğrudan etkiler.
+
+Bu mekanizmanın iskeleti, eşzamanlı programlamadaki **olay döngüsüdür** (event loop). Asenkron bir Agent'ı uzun süre çalışan bir döngü olarak düşünün: her tur, girdi kuyruğundan bir grup olay alır, bunları trajectory'ye ekler, LLM'i bir kez çağırır, LLM'in karar verdiği araçları yürütür ve sonraki olay grubunu beklemek için döngünün başına döner—bu, bir Go goroutine'inin bir channel'dan mesaj okuyup bunları `for { select { ... } }` içinde tur tur işlemesiyle aynı yapıdır. Bu modelin kritik bir özelliği vardır: **olaylar yalnızca her döngü turunun sınırlarında tüketilir**. LLM çıkarım yaparken veya bir araç yürütülürken, yeni gelen bir olay birdenbire araya girip mevcut adımı bozamaz; tur bir **güvenli noktaya** (bir çıkarım dizisinin sonu, bir araç dönüşü) ulaşana dek kuyrukta bekler ve sonra toplu olarak ele alınır. İptal de aynı disiplini izler: keyfi bir anda zorla kesmek yerine, Agent güvenli bir noktada "durmam istendi mi?" diye kontrol eder—Go'da `ctx.Done()`ın oynadığı rol tam olarak budur (Bölüm 10, bir üst Agent'ın alt Agent'larını basamaklı iptalini tartışmak için aynı context yaklaşımını kullanır). Bu anlaşıldığında, aşağıdaki üç işleme stratejisi yalnızca güvenli noktayı ele alış biçimleriyle ayrışır: olayı doğal olarak gelen bir sonraki güvenli noktaya kadar bekletmek (kuyruğa alınmış), proaktif olarak erkenden bir güvenli nokta yaratmak (iptal tabanlı) ya da düpedüz ayrı bir döngü başlatıp ana döngünün güvenli noktasını hiç beklememek (paralel).
 
 **Yapılandırılmış Olay Modellemesi.**
 
@@ -452,7 +463,7 @@ Bu boyutlar yalnızca yapılandırılmış olaylar olarak net biçimde modellend
 
 Birden fazla görevi jonglörlük yapan insanlar stratejilerini aciliyete göre uyarlar: bir acil durum onları yaptıklarını bırakmaya zorlar; rutin bir yapılacak iş daha sonrası için listeye eklenir. Bir Agent'ın olay işlemesi aynı zekayı göstermelidir.
 
-![Şekil 4-4: Asenkron Olay İşleme için Üç Strateji](images/fig4-4.svg)
+![Şekil 4-3: Asenkron Olay İşleme için Üç Strateji](images/fig4-3.svg)
 
 **İptal Tabanlı İşleme**, acil olaylar için kullanılır. Acil bir olay geldiğinde (örn. kullanıcı "dur"a tıklar veya bir denetim sistemi yüksek öncelikli bir talimat gönderir): (1) Mevcut işlemi durdurun—LLM reasoning yapıyorsa, akış yanıtını hemen iptal edin; senkron bir araç yürütülüyorsa, bir iptal sinyali gönderin; (2) Bekleyen kuyruğu boşaltın, tüm olaylarını çıkarın; (3) Bu olayları acil olayla birlikte trajectory'nin sonuna ekleyin; (4) Durumu değerlendirmek için güncellenmiş eksiksiz trajectory'yi girdi olarak kullanarak LLM'i hemen yeniden çağırın. Örneğin, Agent potansiyel olarak hatalı bir işlem gerçekleştirmek üzereyken kullanıcı "Dur! Yanlış söyledim" diye girdi yaparsa, Agent bu yeni girdiyi hemen görecek, gerçek niyeti yeniden anlayacak ve böylece yanlış eylemi yürütmekten kaçınacaktır.
 
@@ -473,7 +484,7 @@ Aşağıdaki deney, olay güdümlü bir e-posta işleme Agent'ı, yukarıda tart
 > **Deney 4-4 ★★★: Olay Güdümlü E-posta İşleme Agent'ı**
 >
 >
-> ![Şekil 4-5: Deney 4-4 Olay Güdümlü Agent Mimarisi](images/fig4-5.svg)
+> ![Şekil 4-4: Deney 4-4 Olay Güdümlü Agent Mimarisi](images/fig4-4.svg)
 >
 >
 > Bu deney en basit olay güdümlü Agent'ı inşa eder: bir **Otomatik E-posta İşleme Asistanı**. Agent e-posta gelen kutusunu izler ve yeni bir e-posta her geldiğinde, otomatik olarak bir işleme iş akışını tetikler—sınıflandırma, özetleme, taslak yanıt ve gerekirse kullanıcıyı bilgilendirme. Bu, olay güdümlü bir Agent için en sezgisel giriş senaryosudur: bir dış olay (yeni e-posta gelişi) eksiksiz bir Agent düşünme döngüsünü tetikler.
@@ -560,10 +571,10 @@ Sona bir özet ekleyin: "Yukarıda 4 işlenmemiş olay var, 1 araç sonucu, 2 ku
 ### Daha Derin Çelişkiler ve Gelecek Yönleri
 
 
-![Şekil 4-6: Senkron Eğitim Paradigması ve Asenkron Dağıtım Gerçekliği](images/fig4-6.svg)
+![Şekil 4-5: Senkron Eğitim Paradigması ve Asenkron Dağıtım Gerçekliği](images/fig4-5.svg)
 
 
-Nihayetinde, önceki bölümlerdeki yer tutucular, asenkron araç arayüzleri ve durum çubuğu işaretleri, hepsi aynı "senkron eğitim / asenkron dağıtım" çelişkisini (Şekil 4-6) yamamak için prompt engineering kullanıyor—bu çelişkinin nedeni bu bölümün başında ayrıntılı olarak ele alındı ve burada tekrarlanmayacak, yalnızca temel çözümüne odaklanılacak.
+Nihayetinde, önceki bölümlerdeki yer tutucular, asenkron araç arayüzleri ve durum çubuğu işaretleri, hepsi aynı "senkron eğitim / asenkron dağıtım" çelişkisini (Şekil 4-5) yamamak için prompt engineering kullanıyor—bu çelişkinin nedeni bu bölümün başında ayrıntılı olarak ele alındı ve burada tekrarlanmayacak, yalnızca temel çözümüne odaklanılacak.
 
 **Model Evrimini Öngörmek: Senkrondan Asenkrona.**
 
@@ -586,7 +597,7 @@ Ama bu araştırmanın daha kritik yarısı **eğitimle** ilgilidir ve yukarıda
 > **Deney 4-5 ★★★: Paralel Yürütme ve Kesinti Yetenekleriyle Asenkron Agent**
 >
 >
-> ![Şekil 4-7: Deney 4-5 Asenkron Agent Kesintisi ve Kurtarma](images/fig4-7.svg)
+> ![Şekil 4-6: Deney 4-5 Asenkron Agent Kesintisi ve Kurtarma](images/fig4-6.svg)
 >
 >
 > Deney 4-4'ün basit olay kuyruğu üzerine inşa edilen bu deney, asenkron Agent'ların zor kısımlarına geçer: **paralel araç yürütme, yürütme iptali ve durum yönetimi**. Agent artık yalnızca olayları birer birer işlemez; birden fazla eş zamanlı görevi aynı anda yönetmesi, kesintileri ve kurtarmaları ele alması ve gerçek zamanlı duruma dayanarak dinamik kararlar alması gerekir.
@@ -600,11 +611,13 @@ Ama bu araştırmanın daha kritik yarısı **eğitimle** ilgilidir ve yukarıda
 > **4. Paralel Araçlar için İptal ve Durum Sorgusu**: Bir asenkron araç tamamlandıktan sonra, gerçek sonuç yeni bir olay aracılığıyla konuşmaya enjekte edilir. Görev ID'si aracılığıyla iptal veya ilerleme sorgusunu destekler. **Doğrulama Senaryosu**: Kullanıcı "Bu üç betiği benim için eş zamanlı çalıştır. Hangisi önce biterse, kalan betiklerin ilerlemesini kontrol et. Herhangi biri %50'yi aşmadıysa, iptal et" diye ister. Üç betik, sırasıyla saniyede %3, %2 ve %1 hızlarında sürekli ilerleme çıktısı vererek analiz süreçlerini simüle eder. Agent, üç asenkron terminal komutunu eş zamanlı olarak başlatır. Saniyede %3'lük betik yaklaşık 33 saniyede bittiğinde, Agent kalan iki terminalin durumunu sorgular, birinin yaklaşık %66'da, diğerinin ise yaklaşık %33'te olduğunu bulur. Ardından %50'yi aşmayanı iptal eder. Her iki terminal de tamamlandıktan sonra, sonuçları eksiksiz bir rapor üretmek için entegre eder.
 >
 
-## Proaktif Araç Keşfi
+## Proaktif Araç Keşfi ve Skill Tabanlı Aşamalı Açıklama
 
 Şimdiye kadarki tartışma, tek tek araçlar ve araç ekosistemi için tasarım ilkelerini kapsadı. Ama mevcut araçlar bir düzineden yüzlere veya binlere büyüdükçe, yeni bir sorun ortaya çıkar—devasa bir kütüphanede ihtiyacınız olanı verimli biçimde nasıl bulursunuz? Bu bölüm önce mevcut araç keşfi yöntemlerini (retrieval tabanlı ön filtreleme, proaktif bildirim, hiyerarşik eşleştirme) kısaca gözden geçirir, ardından daha yeni, daha hafif bir yaklaşıma döner: Skills aracılığıyla kademeli açığa çıkarma.
 
-### Mevcut Araç Keşfi Yöntemleri
+### Model-Yerel Araç Keşfi
+
+Keşif yöntemi, Agent çerçevesinin araçları nasıl temsil ettiğine bağlıdır: bazı çerçeveler model-yerel araçlar, bazıları Skill tabanlı temsil kullanır. Bir yetenek boşluğu oluştuğunda Agent ihtiyacını doğal dille belirtir ve sistem aracı gerektiğinde eşleştirip yükler.
 
 Geleneksel yaklaşım her aracın şemasını bir kerede system prompt'a enjekte eder ve araçlar binlere ulaştığında hızla çöker: context araç el kitaplarıyla tıkanır ve seçim doğruluğu düşer. Önce adayları semantik benzerliğe göre eleyen retrieval tabanlı ön filtreleme (yukarıdaki "Araç Ekosistemi" bölümünde tartışıldı), sorunu hafifletir ama doğasında olan bir sınırlama taşır—yalnızca **bir kez**, kullanıcının başlangıç sorgusuna karşı eşleştirir. "Dosyayı hata ayıkla" kadar masum görünen bir istek, görev başladığında kimsenin öngöremeyeceği çok adımlı, çok alanlı bir araç zincirini—dosya erişimi, kod analizi, komut yürütme—gerektirebilir.
 
@@ -612,19 +625,19 @@ Geleneksel yaklaşım her aracın şemasını bir kerede system prompt'a enjekte
 
 [^mcp-zero-2025]: Fei, X., ve diğerleri. *MCP-Zero: Active Tool Discovery for Autonomous LLM Agents.* arXiv:2506.01056, 2025.
 
-![Şekil 4-8: Hiyerarşik Araç Eşleştirme (İki Düzeyli Semantik Arama: Sunucu Düzeyi → Araç Düzeyi)](images/fig4-8.svg)
+![Şekil 4-7: Hiyerarşik Araç Eşleştirme (İki Düzeyli Semantik Arama: Sunucu Düzeyi → Araç Düzeyi)](images/fig4-7.svg)
 
 **Hiyerarşik Eşleştirme ve Geri Dönüş.** Verimli eşleştirme, araçların organize edilme biçiminde zaten mevcut olan hiyerarşiden yararlanır. MCP gibi protokollerde, araçlar **sunucuya** göre gruplandırılır (bir telefondaki uygulamalar gibi, her biri ilgili işlevler kümesini paketler), bu yüzden eşleştirme iki katmanda çalışabilir: yetenek açıklamasına göre ilgili sunucuları bulun, ardından bunların içindeki belirli araçları eşleştirin. Bu, arama uzayını "binlerce araçtan" "düzinelerce sunucu × sunucu başına düzinelerce araca" küçültür, hesaplamadan tasarruf eder ve çapraz alan semantik karışıklığını azaltır. Mühendislik açısından bu, çevrimdışı inşa edilen ve artımlı olarak güncellenen bir embedding indeksine dayanır. Ve her iki katmanın adayları da eşiğin altında puan aldığında, sistem açık bir "bulunamadı" döndürmeli, Agent'ı yeniden ifade edip yeniden denemeye, temel araçlarla doğaçlama yapmaya veya doğrudan yeni bir araç yaratmaya (Bölüm 8'in konusu) yönlendirmelidir.
 
-![Şekil 4-9: Dinamik Araç Yüklemesi için KV Cache Optimizasyonu](images/fig4-9.svg)
+![Şekil 4-8: Dinamik Araç Yüklemesi için KV Cache Optimizasyonu](images/fig4-8.svg)
 
 **Dinamik Yükleme ve KV Cache.** Proaktif keşif, ince bir mühendislik maliyeti taşır: araçları dinamik olarak yüklemek **KV Cache'i bozar**—araç listesini system prompt'a koyun, yeni yüklenen her araç tüm önbelleğe alınmış ön eği geçersiz kılar. Düzeltme, Bölüm 2'nin Skill enjeksiyon konumu tartışmasıyla eşleşir: değişken kısmı (yeni aracın eksiksiz şeması) konuşmanın sonuna bir user mesajı olarak ekleyin, system prompt ön eğini kararlı ve KV Cache'i tamamen yeniden kullanılabilir tutarak, Agent'ın durum çubuğunda yalnızca kısa bir araç adları listesi tutun. Bu kalıp artık büyük API'ler tarafından yerleşik olarak desteklenir ve ana akım çerçevelerin varsayılan mimarisi haline gelmiştir: OpenAI Responses API bir `tool_search` aracı ve bir `defer_loading: true` bayrağı sağlar, yüklenen şemalar context'in sonuna `tool_search_output` öğeleri olarak eklenir, böylece ön ek cache isabet etmeye devam eder; Claude Code, MCP araçlarını varsayılan olarak erteler (ihtiyaç halinde `tool_reference` blokları aracılığıyla enjekte edilir, oturum başlangıcında yalnızca araç adları ve sunucu talimatları tutulur); ve Codex CLI'nin `tool_search`ü (BM25 retrieval) isteğe bağlı bir özellik değil, her zaman açık bir mimaridir. Dinamik bir araç ortamı ayrıca modelin kendisinden daha fazlasını talep eder—daha zayıf modeller context'in ortasındaki standart olmayan bir konumda görünen araç tanımlarıyla zorlanır ve biçimsiz çağrılar üretme eğilimindedir (uyumsuz JSON parantezleri, eksik parametreler), genellikle özel pekiştirmeli öğrenme eğitimi gerektirir (bkz. Bölüm 7).
 
 Kolayca yanlış anlaşılabilecek bir nokta netleştirilmeye değer: "sona eklenmesi" yalnızca aracın keşfedildiği turda gerçekleşir. O andan itibaren, şema bloğu trajectory'deki orijinal konumunda sabit kalır—sonraki turlardaki yeni mesajlar onun **ardına** eklenir ve o sıradan bir geçmiş haline gelir, her turda en yeni kuyruğa yeniden taşınmaz (her turda yeniden enjekte edilseydi, gerçekten her seferinde yeniden prefill gerekirdi ve cache anlamsız olurdu). Her iki API de bunu garanti eder: OpenAI, sonraki isteklerin `tool_search_output` öğesinin konumunu korumasını gerektirir ve aynı araç turlar arasında asla yeniden yüklenmeye ihtiyaç duymaz; Anthropic `tool_reference` bloğunu konuşma geçmişindeki orijinal konumunda satır içi olarak genişletir ve resmi dokümantasyon, cache'in sonraki her turda isabet etmeye devam ettiğini belirtir. Yalnızca iki durum gerçekten yeniden hesaplamaya neden olur: Prompt Cache TTL'sinin sona ermesi (bu tüm ön eği birlikte yeniden hesaplar—araç tanımlarına özgü bir maliyet değildir) ve yüklenen araç kümesini değiştirmek, kaldırmak veya yeniden sıralamak (bu, o noktadan itibaren cache'i geçersiz kılar).
 
-![Şekil 4-10: Dinamik Keşiften Sonra Context Yapısı—Trajectory Boyunca Dağılmış Araç Şemaları](images/fig4-10.svg)
+![Şekil 4-9: Dinamik Keşiften Sonra Context Yapısı—Trajectory Boyunca Dağılmış Araç Şemaları](images/fig4-9.svg)
 
-Şekil 4-10, birkaç tur dinamik keşiften sonraki eksiksiz resmi gösterir: statik ön ek yalnızca system prompt'u, temel araçları ve araç-arama meta-aracını tutarken, yol boyunca keşfedilen şemalar trajectory boyunca dağılmıştır, ilk enjekte edildikleri yere sabitlenmiştir ve sonraki turlarda sıradan geçmiş olarak cache'ten sunulur. Bu aynı zamanda "araç tanımları context'in en başında olmalıdır" ilkesinin artık katı bir kural olmadığı anlamına gelir—ön ek hâlâ statik ve yalnızca eklemelidir; araç tanımları basitçe ihtiyaç halinde trajectory'ye girme yeteneği kazanmıştır. Maliyeti, modelin context boyunca dağılmış araç tanımlarını anlamak için post-trained olması gerekmesidir.
+Şekil 4-9, birkaç tur dinamik keşiften sonraki eksiksiz resmi gösterir: statik ön ek yalnızca system prompt'u, temel araçları ve araç-arama meta-aracını tutarken, yol boyunca keşfedilen şemalar trajectory boyunca dağılmıştır, ilk enjekte edildikleri yere sabitlenmiştir ve sonraki turlarda sıradan geçmiş olarak cache'ten sunulur. Bu aynı zamanda "araç tanımları context'in en başında olmalıdır" ilkesinin artık katı bir kural olmadığı anlamına gelir—ön ek hâlâ statik ve yalnızca eklemelidir; araç tanımları basitçe ihtiyaç halinde trajectory'ye girme yeteneği kazanmıştır. Maliyeti, modelin context boyunca dağılmış araç tanımlarını anlamak için post-trained olması gerekmesidir.
 
 Açıkçası, tüm bildir-eşleştir-enjekte mekanizması çalışır, ama çok fazla mühendislik gerektirir: çevrimdışı korunacak bir embedding indeksi, yönetilecek KV Cache geçersizleşmesi, daha zayıf modeller için özel eğitim. Bunun altındaki paylaşılan öncül, her aracı modele yönelik **resmi bir tanım** olarak ele almaktır—kaydedilir, getirilir, enjekte edilir. Bir sonraki bölümdeki Skills mekanizması bu öncülü daha hafif bir şey için bırakır.
 
@@ -644,6 +657,8 @@ Açıkçası, tüm bildir-eşleştir-enjekte mekanizması çalışır, ama çok 
 > **Beklenen Gözlemler**: Doğruluk ve görev tamamlama oranında önemli iyileşme. Proaktif araç keşfi yalnızca yetenekli LLM'lerin binlerce araçlı senaryoları ele almasına yardımcı olmakla kalmaz, aynı zamanda küçük modelleri yüzlerce araçlı senaryolarda kullanılabilir tutar.
 
 ### Skills: Araç Keşfini "İhtiyaç Halinde Arama"ya Dönüştürmek
+
+**Aşamalı açıklama.** Başlangıçta Agent yalnızca her Skill'in `name` ve `description` alanlarından oluşan ince bir katalog görür; bağlam ihtiyaç duyduğunda alt Skill'i ve başvurulan dosyaları okur. Bu, bir başvuru kitabına veya Wikipedia'ya gerektiğinde bakmaya benzer. JSON kullanan model-yerel araçlar modele, doğal dilli Skill'ler ise insan yazarlarına daha uygundur.
 
 Son zamanlarda ivme kazanan düşünce hattı Skills mekanizmasından gelir. Bölüm 2, Skills'in **Kademeli Açığa Çıkarmasını** context engineering olarak tanıttı; burada bunu bir araç keşfi paradigması olarak ele alıyoruz—ve önceki bölümden ayırt edici farkı, "embedding indeksi + semantik eşleştirme" altyapısının tamamen ortadan kalkmasıdır.
 
@@ -665,15 +680,15 @@ Beş araç kategorisinin her birinin ayrı tasarım vurguları vardır:
 
 - **Algı araçları**: Kilit hususlar granülarite ödünleşimlerini, bağlama duyarlı akıllı özetlemeyi ve sayfalama ile açık kesme gibi arayüz tasarımını içerir; salt okunur doğaları onları doğal olarak önbellekleme ve paralelliğe uygun kılar.
 - **Yürütme araçları**: Kilit hususlar hiyerarşik güvenlik korumasını, proposer-reviewer incelemesini (ön onay ve sonradan doğrulama) ve Sidecar mekanizmasını içerir.
-- **İş birliği araçları**: Kilit hususlar alt Agent context yönetimini ve insan müdahalesiyle bir öğrenme döngüsünü içerir.
+- **İş birliği araçları**: Kilit hususlar alt Agent yaşam döngüsü ilkellerini (oluşturma, mesaj, iptal, keşif) ve insan müdahalesiyle bir öğrenme döngüsünü içerir.
 - **Olay tetikleyici araçlar**: Kilit hususlar tetikleme koşullarının filtrelenmesini ve olay yüklerinin tasarımını içerir, dünyanın Agent'ı proaktif olarak uyandırmasını mümkün kılar.
 - **Kullanıcı iletişim araçları**: Kilit hususlar asenkron mesajlaşma kalıplarını, çok kanallı seçimi ve kullanıcı geri çağırmayı içerir; sanal kimlikler ve izole yürütme ortamları, Agent'ların bağımsız hareket etmesi için kimlik temelini sağlar.
 
 Asenkron tarafta, OpenClaw'ın yerleşik otomasyon mekanizmaları (Hooks, Cron, Heartbeat) Agent'ların bir zamanlamaya göre otonom olarak hareket etmesine izin verir, ama yerleşik kanalların (e-posta, API geri çağrıları) ötesindeki üçüncü taraf olay kaynakları için anlık bir giriş yolu sunmaz. PineClaw'ın Channel mekanizması bu boşluğu doldurur, zaman güdümlüden olay güdümlüye evrimi işaretler. Üç strateji—iptal tabanlı, kuyruğa alınmış ve paralel işleme—Agent'ların farklı öncelikteki olayları ele almasına izin verir. Yine de bu mimari, günümüz büyük modellerinin senkron eğitim paradigmasıyla derin bir çelişki içindedir; şimdilik, asenkron yer tutucular gibi mühendislik çözümleri bunu yalnızca hafifletebilir. Temel düzeltme, gecikmeyi, kesintiyi ve eşzamanlılığı asenkron ortamlarda pekiştirmeli öğrenme yoluyla içselleştiren yeni nesil modelleri bekliyor (Bölüm 9'da tartışılan VLA modellerinin ruhuyla).
 
-Altı deney, temellerden mimariye ilerler: Deney 4-1'den 4-3'e üç temel araç kümesini—algı, yürütme ve iş birliğini—inşa eder; Deney 4-4, bir e-posta işleme Agent'ıyla olay güdümlü işlemeyi tanıtır; Deney 4-5, paralel yürütmeyi, kesinti kurtarmayı ve durum yönetimini uygular; Deney 4-6, kütüphane ölçeğinde proaktif araç keşfinin değerini doğrular. Bu bölümün kapsadığı her şey—MCP protokolü, tasarım ilkeleri, asenkron mimari—Bölüm 8'deki Agent'ın kendi kendine evrimi için bir ön koşuldur.
+Altı deney, temellerden mimariye ilerler: Deney 4-1'den 4-3'e üç temel araç kümesini—algı, yürütme ve iş birliğini—inşa eder; Deney 4-4, bir e-posta işleme Agent'ıyla olay güdümlü işlemeyi tanıtır; Deney 4-5, paralel yürütmeyi, kesinti kurtarmayı ve durum yönetimini uygular; Deney 4-6, kütüphane ölçeğinde proaktif araç keşfinin değerini doğrular. Bu bölümün sınırı **mevcut araçları** tanımlamak, keşfetmek ve güvenli biçimde kullanmaktır. Bölüm 8 ise Agent'ın başarısızlıklardan ve tekrarlanan işlemlerden yola çıkarak ne zaman bir aracı yaratacağına, değiştireceğine, yeniden doğrulayacağına veya kullanımdan kaldıracağına nasıl karar verdiğini tartışır.
 
-Bir sonraki bölüm, "bir Agent araçları nasıl kullanır"dan daha temel bir soruyu sorar: bir Agent kod yazarak araçlar **yaratabilir mi**? Bir Kodlama Agent'ı artı bir dosya sistemi, her genel amaçlı Agent'ın temel dayanağıdır—ve Bölüm 8'in kendi kendine evrim yeteneğinin başlangıç noktasıdır.
+Bir sonraki bölüm, "bir Agent araçları nasıl kullanır"dan daha temel bir soruyu sorar: bir Agent kod yazarak araçlar **yaratabilir mi**? Bir Kodlama Agent'ı artı bir dosya sistemi, her genel amaçlı Agent'ın temel dayanağıdır ve Bölüm 8'deki kontrollü sistem öz-değişikliği tartışması için gereken yürütme yeteneğini de sağlar.
 
 ## Düşünce Soruları
 
@@ -682,6 +697,5 @@ Bir sonraki bölüm, "bir Agent araçları nasıl kullanır"dan daha temel bir s
 3. ★★ MCP ekosisteminde, farklı MCP sunucuları yüksek oranda örtüşen işlevselliğe sahip araçlar sağlayabilir. Bir Agent, işlevsel olarak benzer farklı kaynaklardan birden fazla araçla karşılaştığında, nasıl seçim yapmalıdır? Farklı kaynaklardan aynı ada sahip araçlar biraz farklı davranırsa (örn. biri özet döndürür, diğeri tam metin döndürür), Agent bu farkı algılayıp kullanabilir mi?
 4. ★★★ Bir Agent kullanıcı adına dış dünyayla etkileşime girdiğinde, özünde bir kimlik seçimiyle karşı karşıyadır: üçüncü bir taraf olarak hareket etmek için bağımsız bir sanal kimlik (özel e-posta ve telefon numarası) mı kullanmalı, yoksa kullanıcının kişisel hesaplarını kullanıcının kendisi olarak mı doğrudan işletmeli? Birincisi otonom arka plan işlemine izin verir, ama üçüncü taraflar insan olmayan bir kimliğe güvenmeyebilir; ikincisi daha eksiksiz context ve izinlere sahiptir ama güven yetkilendirmesi ve güvenlik sınırı sorunları getirir. Hangi senaryolarda her modun seçilmesi gerektiğini düşünüyorsunuz?
 5. ★★ Kuyruk tabanlı olay işlemede, modeller yalnızca son olaya odaklanma eğilimindedir. Bu bölüm bunu Agent durum çubuğu işaretleri ve özetleme yoluyla hafifletir. Ama kuyrukta 20 olay birikmişse (10 araç sonucu + 5 kullanıcı mesajı + 5 sistem uyarısı), modelin kilit bilgiyi kaçırmaması için bu olayların sunum sırasını ve formatını nasıl organize ederdiniz?
-6. ★★★ Alt Agent'lara context geçirmek için dört strateji vardır (minimal/elle/otomatik/LLM tarafından üretilen). Çok az context alt Agent'ın "kör yürütmesine" neden olurken, çok fazla context gürültü ve gizlilik riskleri getirir. Görev türüne ve hassasiyete dayanarak uygun stratejiyi otomatik olarak seçen uyarlanabilir bir context geçirme mekanizması tasarlayın.
-7. ★★ Bu bölüm bir "yürüt-doğrula-geri bildir" döngüsü önerir (örn. kod yazdıktan sonra otomatik olarak bir linter çalıştırmak). Bu "işlem sonrası anında otomatik doğrulama" kalıbı başka hangi araç senaryolarına uygulanabilir? Doğrulamanın kendisinin maliyetinin veya riskinin işlemin kendisininkini aştığı, bu kalıbı uygulanamaz kılan işlemler var mı?
-8. ★★ Bu bölüm "araç patlaması" sorununu gündeme getiriyor—bir Agent'ın seçim doğruluğu binlerce araçla karşılaştığında kötüleşiyor. Proaktif araç keşfinin yanı sıra, başka hangi yaklaşımlar var? İnsan uzmanların devasa bir mevcut araçlar koleksiyonuyla nasıl başa çıktığından yararlanmayı düşünün.
+6. ★★ Bu bölüm bir "yürüt-doğrula-geri bildir" döngüsü önerir (örn. kod yazdıktan sonra otomatik olarak bir linter çalıştırmak). Bu "işlem sonrası anında otomatik doğrulama" kalıbı başka hangi araç senaryolarına uygulanabilir? Doğrulamanın kendisinin maliyetinin veya riskinin işlemin kendisininkini aştığı, bu kalıbı uygulanamaz kılan işlemler var mı?
+7. ★★ Bu bölüm "araç patlaması" sorununu gündeme getiriyor—bir Agent'ın seçim doğruluğu binlerce araçla karşılaştığında kötüleşiyor. Proaktif araç keşfinin yanı sıra, başka hangi yaklaşımlar var? İnsan uzmanların devasa bir mevcut araçlar koleksiyonuyla nasıl başa çıktığından yararlanmayı düşünün.

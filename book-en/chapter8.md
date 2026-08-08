@@ -127,6 +127,14 @@ For example, an airline customer-service Agent may escalate to a human too early
 
 Skill learning follows the same principle, but with a more localized scope. A Skill can be understood as an on-demand operating manual for a particular job: if multiple experiences collectively form a complete insurance claims process, the system can generate or revise the corresponding Skill. A candidate Skill should not merely summarize one conversation; at minimum, it should specify when to load, prerequisites, operating steps, known pitfalls, validation methods, and source trajectories. The system first searches the existing Skill library for similar capabilities, preferring a local `patch` when the same process already exists and creating a new directory only for a genuinely independent capability. This prevents the library from filling with manuals that differ in name but duplicate one another. Anthropic’s Skill Creator[^anthropic-skill-creator] demonstrates a draft–test–evaluate–revise loop. It addresses how to create and improve a Skill; the harder questions remain what operational evidence is sufficient to trigger creation, how to resolve conflicts, and whether the revision passes domain-specific and old-task regression tests.
 
+> **Experiment 8-9 ★★: Turning Feedback into a Writing Skill**
+>
+> Process the 20 before/after pairs in `data/feedback_pairs.json` in three batches. Extract candidate rules, merge duplicate patterns, detect threshold conflicts, and generate a sourced, scoped `SKILL.md`. Check deterministic rules in code and calibrate LLM rules on ten gold examples.
+>
+> Report detection on the unfinished-task boundary set, false positives on the normal-text holdout, and rule-count growth together. The first real run produced 0/8 detection and 7/8 false positives; after model-external filtering and deterministic fallback it produced 8/8, 0/8, and merged 21 candidates into 8 rules. Implementation: [`ai-style-skill`](../chapter8/ai-style-skill/).
+
+The curved-quote case shows why a Skill should become a data contract rather than a global replacement rule: synthetic examples must be stratified by article type, scope, and programming language, pass code/JSON/protected-region gates, and receive manual audits before SFT. The exact-string case adds a tokenizer audit: encode→decode round-trip, model byte-exact copying, Harness serialization, and tool matching are separate regression layers.
+
 > **Experiment 8-3 ★★: Optimizing System Prompts from Failure Trajectories**
 >
 > **Objective:** Teach an airline customer-service Agent from trajectories in which it escalates too quickly when a user challenges a policy, while demonstrating that the new rule does not break older scenarios that genuinely require escalation.
@@ -204,6 +212,12 @@ Tool creation follows the same protocol. Alita[^alita-2025] presents a case in w
 
 [^alita-2025]: Qiu, J., et al. *Alita: Generalist Agent Enabling Scalable Agentic Reasoning with Minimal Predefinition and Maximal Self-Evolution.* arXiv:2505.20286, 2025.
 
+Experiment 8-8 applies the same protocol to the verification layer. Only repeated user corrections, downvotes, and audits pointing to an unconfirmed high-risk operation create a change request; the candidate is written to an isolated directory. Classify dangerous deletions and `git push --force` from tool names and arguments, and bind a one-time confirmation token to the concrete operation. A candidate must pass AST/static checks, boundary replay (including forged and reused tokens), and holdout replay before canary release.
+
+> **Experiment 8-8 ★★: A User-Feedback-Triggered Confirmation Gate for High-Risk Operations**
+>
+> Use the three signal types and control trajectories in `failure_trajectories.json`. The real `gpt-4o-mini` candidate failed unfinished-task replay, normal-operation replay, and one-time-token checks, so the safety gate rejected it. The deterministic candidate passed all checks and received `release_to_canary`; record checks, the release decision, and the stable-directory hash. Implementation: [`harness-safety-gate`](../chapter8/harness-safety-gate/).
+
 ### Encoding Experience in Parameters
 
 Knowledge, instructions, and programs all rest on one premise: the target capability can be expressed relatively completely through external symbols. Yet capabilities such as medical-image understanding, natural speech prosody, removing a formulaic “AI feel” from text, and long-horizon planning are difficult to compress into a few rules or workflows. Such capabilities must be written into model parameters through post-training.
@@ -225,6 +239,16 @@ At the next level, the optimization target is no longer merely what context cont
 The same idea extends to workflows and the entire Harness. AFlow represents workflows composed of multiple LLM calls as code graphs and searches over combinations of nodes and control flow using execution feedback[^aflow-2025]. Meta-Harness has a Coding Agent inspect candidate Harness source, scores, and trajectories to search the code that determines how information is stored, retrieved, and presented[^meta-harness-2026]. Chapter 5 established code as a general language for expressing Agent system structure. The additional point here is that code, together with its evaluation history, can itself become the object of continual search rather than a one-time output.
 
 Higher levels are not automatically better. Searching for a local rule may require only a few edge cases, whereas searching an entire workflow or Harness faces a much larger candidate space, higher evaluation cost, and harder attribution. A clear, recurring fault localized to one component should first receive an auditable local patch. Only when local changes repeatedly fail to address a cross-component problem, or when the current management method itself becomes the bottleneck, is it worth moving outward to the workflow, Harness, or optimizer. At every level, evaluators, permission boundaries, and held-out tests must remain outside the editable scope—the larger the search space, the more important this trusted root becomes.
+
+> **Experiment 8-6 ★★★: Give Hermes This Book: Can It Upgrade Itself?**
+>
+> **Objective:** Test whether an Agent can turn external knowledge into an update to its own capabilities. The experiment supplies no problem statement and no feature checklist. Hermes receives all ten chapters and its own source, then must understand the principles, inspect its implementation, and choose a worthwhile improvement itself.
+>
+> **Design:** The book and source are readable context, while the stable version, independent Reviewer, and acceptance tests remain outside Hermes' editable scope. Hermes must complete **read → compare → choose → change → verify**. If a candidate is rejected, the review becomes input to the next learning round; Hermes cannot bypass the gate and declare success.
+>
+> **Real run:** After reading the book, Hermes independently noticed that its saved trajectories lacked structured evidence that later learning could use directly. It chose to turn execution outcomes into conservative learning signals, then edited its own source and added tests. The first three independent reviews found mismatches with real data formats, persistence paths, and counting semantics. Each finding went back to the original Hermes session for another correction; the fourth review accepted the candidate. Rejection was not the end of the experiment, but part of the improvement loop.
+>
+> **Claim boundary:** This run shows that an Agent can extract principles from long-form knowledge, map them onto its own code, and complete a self-update under external verification. It does not show that the update already improves downstream task success; that requires a separate ablation experiment. Reader Grace contributed the experiment idea.
 
 ## Building a Continual-Evolution Closed Loop for Long-Term Operation
 
@@ -288,7 +312,7 @@ The same limitation appears in ordinary software engineering. Passing every unit
 
 An Agent’s self-evolution capability can turn a single error into a long-term risk. **If Prompt injection in web pages, email, or tool output is summarized as experience**, it may take effect repeatedly across sessions. If a malicious package found through automated search is wrapped as a tool, its impact can spread from one sandbox run to every subsequent task. A defective verifier may also continue approving candidates that appear to improve but actually regress. An Agent self-evolution system must therefore ask not only whether a candidate is stronger, but also who may modify what and what evidence justifies the change.
 
-The first boundary is **separating evidence from instructions**. Raw web pages and tool output are untrusted evidence and must not be written directly into a Skill or similar capability; an LLM must first summarize them. Writes should be version-controlled and submitted as pull requests, which are merged only after review by a reviewer LLM from a different source.
+The first boundary is **separating evidence from instructions**. Raw web pages, tool output, and any LLM summaries of them are untrusted evidence: they must not be executed as instructions or promoted directly into a Skill or similar long-term capability. LLM summarization is a transformation for readability and processing, not a sanitization step that makes the input harmless. The system should extract claims, source locations, and collection times into a fixed schema while preserving the raw content and provenance; extracted strings must never be executed as instructions. Model-produced confidence is likewise an unverified estimate, not an approval gate. Candidates must also pass deterministic schema, allowlist, and provenance checks before being submitted as version-controlled pull requests. A reviewer independent of the generator should compare the change with the original evidence, with human approval added for high-risk Skill promotion.
 
 The second boundary is **separating candidate capabilities from production capabilities**. New knowledge, Prompts, Skills, programs, and parameters first enter a candidate area that cannot serve real traffic. Newly generated code and external dependencies must also pass security checks such as sandbox execution, permission review, supply-chain scanning, and behavioral testing. Only after security checks and regression tests pass may a candidate serve real traffic as a production capability.
 
@@ -319,7 +343,7 @@ Continual evolution does not mean allowing knowledge, Prompts, and tools to grow
 - Delete knowledge invalidated by new evidence;
 - Retrain LoRA from the original base model.
 
-> **Experiment 8-6 ★★★: Evaluating Whether an Agent Is Continually Evolving**
+> **Experiment 8-7 ★★★: Evaluating Whether an Agent Is Continually Evolving**
 >
 > **Objective:** Distinguish among three long-term behaviors—saving one piece of feedback, merely appending forever, and genuinely updating, transferring, and retaining capabilities—so that repeatedly running the same tasks is not mistaken for continual learning.
 >

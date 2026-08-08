@@ -127,6 +127,14 @@ Ví dụ, Agent chăm sóc khách hàng hàng không thường chuyển sang nh�
 
 Học Skill tuân theo cùng nguyên tắc nhưng có phạm vi tác động cục bộ hơn. Có thể xem Skill là sổ tay nghiệp vụ được mở khi cần. Nếu nhiều kinh nghiệm cùng hình thành một quy trình yêu cầu bồi thường bảo hiểm hoàn chỉnh, hệ thống có thể tạo hoặc sửa Skill tương ứng. Skill ứng viên không nên chỉ là bản tóm tắt một hội thoại; tối thiểu nó phải nêu khi nào cần nạp, điều kiện tiên quyết, các bước thao tác, bẫy đã biết và cách xác minh, đồng thời lưu quỹ đạo nguồn. Hệ thống trước tiên tìm năng lực gần giống trong kho Skill hiện có: nếu đã có cùng quy trình thì ưu tiên `patch` cục bộ; chỉ tạo thư mục mới khi thật sự xuất hiện một năng lực độc lập mới, tránh để kho chứa đầy các sổ tay khác tên nhưng gần giống nội dung. Skill Creator của Anthropic[^anthropic-skill-creator] minh họa vòng tạo “soạn thảo — kiểm thử — đánh giá — sửa đổi”. Nó giải quyết cách tạo và cải thiện Skill; phần khó thực sự vẫn là bằng chứng vận hành nào đủ để kích hoạt, xử lý xung đột thế nào và sau sửa đổi có vượt qua nhiệm vụ lĩnh vực cùng hồi quy nhiệm vụ cũ hay không.
 
+> **Thí nghiệm 8-9 ★★: Chuyển phản hồi thành Skill viết**
+>
+> Xử lý 20 cặp before/after trong `data/feedback_pairs.json` theo ba đợt, trích xuất quy tắc ứng viên, gộp mẫu trùng, kiểm tra xung đột ngưỡng và tạo `SKILL.md` có nguồn/phạm vi. Quy tắc xác định kiểm tra bằng mã; quy tắc LLM được hiệu chỉnh trên 10 mẫu vàng.
+>
+> Báo cáo đồng thời tỷ lệ phát hiện trên tập nhiệm vụ chưa hoàn thành, tỷ lệ báo nhầm trên văn bản bình thường và số quy tắc tăng. Lần chạy thật đầu tiên đạt 0/8 phát hiện và nhầm 7/8; sau bộ lọc ngoài mô hình và fallback xác định, đạt 8/8, nhầm 0/8, gộp 21 ứng viên thành 8 quy tắc. Xem [`ai-style-skill`](../chapter8/ai-style-skill/).
+
+Trường hợp dấu ngoặc kép cong cho thấy Skill phải trở thành hợp đồng dữ liệu thay vì quy tắc thay thế toàn cục: trước SFT, các ví dụ tổng hợp được phân tầng theo thể loại bài, phạm vi và ngôn ngữ lập trình, vượt qua gate mã/JSON/vùng bảo vệ và được kiểm tra thủ công. Với exact-copy, round-trip encode→decode của tokenizer, sao chép byte-exact của mô hình, tuần tự hóa Harness và đối sánh công cụ phải được kiểm toán như các lớp hồi quy riêng.
+
 > **Thí nghiệm 8-3 ★★: Tối ưu Prompt hệ thống dựa trên quỹ đạo thất bại**
 >
 > **Mục tiêu thí nghiệm**: Giúp Agent chăm sóc khách hàng hàng không học từ quỹ đạo thất bại “chuyển sang nhân viên quá sớm khi người dùng chất vấn chính sách”, đồng thời chứng minh quy tắc mới không phá hỏng các tình huống cũ thật sự cần chuyển tiếp.
@@ -204,6 +212,12 @@ Việc tạo công cụ cũng tuân theo cùng giao thức. Trường hợp Alit
 
 [^alita-2025]: Qiu, J., et al. *Alita: Generalist Agent Enabling Scalable Agentic Reasoning with Minimal Predefinition and Maximal Self-Evolution.* arXiv:2505.20286, 2025.
 
+Thí nghiệm 8-8 áp dụng cùng giao thức vào lớp xác minh. Chỉ tạo yêu cầu thay đổi khi nhiều sửa chữa của người dùng, đánh giá thấp và audit cùng chỉ ra thao tác rủi ro cao không được xác nhận; ứng viên được ghi vào thư mục cô lập. Phân loại thao tác xóa nguy hiểm và `git push --force` theo tên/đối số công cụ, buộc token một lần vào thao tác cụ thể. Ứng viên phải qua kiểm tra AST/tĩnh, replay tập ranh giới (kể cả token giả/tái sử dụng) và replay tập giữ lại.
+
+> **Thí nghiệm 8-8 ★★: Cổng xác nhận thao tác rủi ro cao từ phản hồi người dùng**
+>
+> Dùng ba tín hiệu và trajectory đối chứng trong `failure_trajectories.json`. Ứng viên `gpt-4o-mini` thật không qua replay nhiệm vụ chưa hoàn thành, thao tác bình thường và token một lần nên bị cổng an toàn từ chối. Ứng viên xác định vượt qua và nhận `release_to_canary`; ghi lại kiểm tra, quyết định và hash thư mục ổn định. Xem [`harness-safety-gate`](../chapter8/harness-safety-gate/).
+
 ### Ghi kinh nghiệm vào tham số
 
 Tri thức, chỉ dẫn và chương trình đều dựa trên một tiền đề: năng lực mục tiêu có thể được biểu đạt tương đối đầy đủ bằng ký hiệu bên ngoài. Tuy nhiên, những năng lực như hiểu ảnh y khoa, ngữ điệu giọng nói tự nhiên, loại bỏ “chất AI” khuôn mẫu trong văn bản và lập kế hoạch dài hạn rất khó nén thành vài quy tắc hoặc quy trình công việc. Những năng lực này phải được ghi vào tham số mô hình thông qua hậu huấn luyện.
@@ -225,6 +239,16 @@ Ra ngoài một tầng, đối tượng tối ưu không chỉ là “ngữ cả
 Ý tưởng này mở rộng tới quy trình công việc và toàn bộ Harness. AFlow biểu diễn quy trình gồm nhiều lần gọi LLM thành đồ thị mã và dùng phản hồi thực thi để tìm tổ hợp nút cùng luồng điều khiển[^aflow-2025]. Meta-Harness để Coding Agent đọc mã nguồn, điểm số và quỹ đạo của Harness ứng viên rồi tìm kiếm mã quyết định cách lưu, truy xuất và trình bày thông tin[^meta-harness-2026]. Chương 5 đã xem mã là ngôn ngữ chung biểu đạt cấu trúc hệ thống Agent; điểm mới ở đây là mã cùng lịch sử đánh giá có thể trở thành đối tượng tìm kiếm liên tục, không chỉ là đầu ra một lần.
 
 Tầng cao hơn không mặc nhiên tốt hơn. Tìm một quy tắc cục bộ có thể chỉ cần vài ca biên; tìm toàn bộ quy trình hoặc Harness phải đối mặt với không gian ứng viên lớn hơn, chi phí đánh giá cao hơn và khó quy kết hơn. Một lỗi rõ ràng, lặp lại và định vị được ở một thành phần nên được sửa trước bằng bản vá cục bộ có thể kiểm toán. Chỉ khi sửa cục bộ lâu dài không giải quyết được vấn đề xuyên thành phần, hoặc chính phương pháp quản lý đã thành nút thắt, mới nên nâng lên tầng quy trình, Harness hay bộ tối ưu. Ở mọi tầng, bộ đánh giá, ranh giới quyền và tập kiểm thử giữ lại phải nằm ngoài vùng có thể sửa — không gian tìm kiếm càng lớn, gốc tin cậy này càng quan trọng.
+
+> **Thí nghiệm 8-6 ★★★: Đưa cuốn sách này cho Hermes: nó có thể tự nâng cấp không?**
+>
+> **Mục tiêu**: Kiểm tra liệu một Agent có thể biến tri thức bên ngoài thành một bản cập nhật thật cho chính năng lực của mình hay không. Thí nghiệm không nêu sẵn vấn đề hay danh sách tính năng. Hermes nhận cả mười chương và mã nguồn của mình, rồi phải hiểu nguyên tắc, xem lại cách triển khai và tự chọn một cải tiến đáng làm.
+>
+> **Thiết kế**: Cuốn sách và mã nguồn tạo thành ngữ cảnh có thể đọc, còn phiên bản ổn định, Reviewer độc lập và kiểm thử chấp nhận nằm ngoài phạm vi Hermes được sửa. Hermes phải hoàn tất **đọc → đối chiếu → chọn → thay đổi → xác minh**. Nếu ứng viên bị từ chối, nhận xét trở thành tín hiệu học cho vòng tiếp theo; Hermes không thể bỏ qua cổng kiểm tra rồi tuyên bố thành công.
+>
+> **Lần chạy thật**: Sau khi đọc sách, Hermes tự nhận ra các trajectory đã lưu còn thiếu bằng chứng có cấu trúc để việc học sau này dùng trực tiếp. Nó chọn chuyển kết quả thực thi thành tín hiệu học thận trọng, sửa mã nguồn của mình và thêm kiểm thử. Ba lần review độc lập đầu tiên tìm thấy sai lệch với định dạng dữ liệu thật, các đường lưu trữ và ý nghĩa phép đếm. Mỗi phát hiện quay về phiên Hermes ban đầu; lần review thứ tư chấp nhận ứng viên.
+>
+> **Giới hạn kết luận**: Lần chạy cho thấy Agent có thể rút nguyên tắc từ tri thức dài, ánh xạ chúng vào mã của mình và hoàn tất tự cập nhật dưới xác minh bên ngoài. Nó chưa chứng minh tỷ lệ thành công downstream đã tăng; điều đó cần một thí nghiệm ablation riêng. Ý tưởng thí nghiệm do độc giả Grace đóng góp.
 
 ## Xây dựng vòng khép kín tiến hóa liên tục có thể vận hành dài hạn
 
@@ -319,7 +343,7 @@ Tiến hóa liên tục cũng không có nghĩa là để tri thức, Prompt và
 - xóa tri thức bị bằng chứng mới bác bỏ;
 - huấn luyện lại LoRA từ mô hình nền tảng gốc.
 
-> **Thí nghiệm 8-6 ★★★: Đánh giá Agent có đang tiến hóa liên tục hay không**
+> **Thí nghiệm 8-7 ★★★: Đánh giá Agent có đang tiến hóa liên tục hay không**
 >
 > **Mục tiêu thí nghiệm**: Phân biệt ba hành vi dài hạn — “biết lưu một lần phản hồi”, “chỉ biết nối thêm” và “có thể cập nhật, chuyển giao, duy trì năng lực” — để tránh giả mạo học liên tục bằng cách lặp lại cùng một tập câu hỏi.
 >

@@ -70,7 +70,7 @@ def load_texts_from_file(input_file: str) -> List[Dict]:
         ]
 
 
-def load_dataset_for_context(dataset_name: str = "MrDragonFox/Elise", split: str = "train"):
+def load_dataset_for_context(dataset_name: str = "maxbsoft/mrdragonfox-elise", split: str = "train"):
     """Load the dataset for voice context examples."""
     raw_ds = load_dataset(dataset_name, split=split)
     target_sampling_rate = 24000
@@ -84,7 +84,7 @@ def generate_speech_batch(
     texts: List[Dict],
     output_dir: str,
     max_new_tokens: int = 125,
-    dataset_name: str = "MrDragonFox/Elise",
+    dataset_name: str = "maxbsoft/mrdragonfox-elise",
 ):
     """Generate speech for multiple texts."""
     output_path = Path(output_dir)
@@ -94,13 +94,17 @@ def generate_speech_batch(
     
     # Load dataset once if any item needs context
     raw_ds = None
-    needs_context = any(item.get("dataset_context_idx") is not None for item in texts)
+    needs_context = any(isinstance(item, dict) and item.get("dataset_context_idx") is not None for item in texts)
     if needs_context:
         print(f"Loading dataset: {dataset_name}")
         raw_ds = load_dataset_for_context(dataset_name)
         print(f"Loaded {len(raw_ds)} examples from dataset")
     
     for item in tqdm(texts, desc="Generating speech"):
+        if isinstance(item, str):
+            item = {"text": item}
+        elif not isinstance(item, dict):
+            raise ValueError(f"Each item must be a string or dict, got: {item}")
         text = item.get("text")
         if not text:
             raise ValueError(f"Each item must have a non-empty 'text' field, got: {item}")
@@ -201,8 +205,8 @@ def main():
     parser.add_argument(
         "--dataset-name",
         type=str,
-        default="MrDragonFox/Elise",
-        help="Dataset name to load context from (default: MrDragonFox/Elise)"
+        default="maxbsoft/mrdragonfox-elise",
+        help="Dataset name to load context from (default: public Elise mirror)"
     )
     
     args = parser.parse_args()
@@ -232,4 +236,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

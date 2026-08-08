@@ -75,19 +75,19 @@ Theo trực giác, mức sử dụng càng cao thì thời gian chờ đợi s�
 >
 > ASR, LLM và TTS hỗ trợ chuyển đổi linh hoạt giữa nhiều nhà cung cấp ở từng giai đoạn. Các nhà phát triển có thể chọn sự kết hợp tối ưu dựa trên độ trễ, độ chính xác và điều kiện mạng khu vực.
 >
-> **Thử nghiệm 9-2 ★: Xây dựng Agent điện thoại sử dụng PineClaw Voice API**
+> **Thử nghiệm 9-2 ★: Xây dựng Agent thoại “gọi cho người dùng” bằng WebRTC**
 >
-> Thử nghiệm 9-1 đã xây dựng hệ thống đối thoại bằng giọng nói trên trình duyệt, nhưng nhiều tác vụ Agent trong thế giới thực yêu cầu thực hiện các cuộc gọi điện thoại thực - liên hệ với bộ phận dịch vụ khách hàng để thương lượng hóa đơn, đặt chỗ nhà hàng và xác nhận đơn hàng. Chương 4 cho thấy cách kiến trúc hướng sự kiện có thể giảm độ trễ phản hồi của thông báo qua điện thoại từ vài phút xuống vài giây thông qua cơ chế Kênh của PineClaw; thí nghiệm này tập trung vào việc xây dựng chính cuộc gọi thoại. Lấy [PineClaw Voice API](https://pineclaw.com/) (do nhóm tác giả phát triển) làm ví dụ, loại API giọng nói điện thoại cấp sản xuất này thường gói gọn toàn bộ quá trình quay số, điều hướng IVR (tức là "Vui lòng nhấn 1 để hỏi, vui lòng nhấn 0 để chuyển thủ công"), hội thoại và phiên âm: Sau khi Agent cung cấp số điện thoại, mục tiêu và thông tin theo ngữ cảnh, Agent giọng nói sẽ hoàn thành toàn bộ cuộc gọi và trả về bản ghi cuộc gọi có cấu trúc.
+> “Agent điện thoại” không nhất thiết phải kết nối với PSTN hay yêu cầu người đọc chuẩn bị một số điện thoại thật. Trong nhiều tác vụ nhắc việc, thu thập thông tin, xác nhận và theo dõi, bên nhận cuộc gọi chính là người dùng. Khi đó, WebRTC trên trình duyệt dễ tái hiện hơn: người dùng mở một trang cục bộ và cấp quyền truy cập micrô một cách rõ ràng; Agent thiết lập phiên truyền thông thời gian thực với trình duyệt để trực tiếp “gọi” người dùng. Trình duyệt gửi RTP từ micrô đến peer cục bộ và nhận RTP âm thanh chiều xuống của Agent; data channel chỉ mang tín hiệu điều khiển gửi âm thanh và bản sao phụ đề hỗ trợ khả năng tiếp cận, không mang ngữ nghĩa canonical của người dùng. Toàn bộ quy trình không cần số E.164 hay tài khoản của nhà cung cấp dịch vụ điện thoại. PSTN/IVR vẫn phù hợp với các tác vụ sản xuất buộc phải liên hệ tổ chức bên ngoài, nhưng không phải điều kiện tiên quyết để hiểu “cuộc gọi thoại như một công cụ của Agent”.
 >
-> **Mục tiêu của phòng thí nghiệm**: Xây dựng Agent thực hiện các tác vụ qua cuộc gọi điện thoại thực, tích hợp PineClaw Voice làm công cụ vào vòng lặp ReAct.
+> **Mục tiêu của phòng thí nghiệm**: Xây dựng một Agent có thể chủ động khởi tạo phiên thoại trên trình duyệt, thu thập thông tin còn thiếu từ người dùng, đọc lại để xác nhận và trả về kết quả có cấu trúc; đồng thời duy trì hai nhóm “gọi trực tiếp” và “lập kế hoạch ReAct” để đối chiếu.
 >
-> **Giải pháp kỹ thuật**: Sử dụng PineClaw Voice Python SDK (`pine-voice`) để trang bị cho Agent các công cụ `make_phone_call`. Agent nhận mô tả nhiệm vụ của người dùng (chẳng hạn như “giúp tôi đặt lịch khám răng vào 3 giờ chiều ngày mai”) và sử dụng ReAct để suy nghĩ và quyết định: (1) số điện thoại nào cần gọi; (2) mục tiêu và thông tin chính của cuộc gọi; (3) cách báo cáo kết quả cho người dùng sau cuộc gọi.
+> **Giải pháp kỹ thuật**: Dịch vụ FastAPI cục bộ nhận SDP offer của trình duyệt; `aiortc` trả về answer, kết cuối luồng truyền thông và giải mã RTP từ micrô thực sự nhận được thành PCM. Whisper cục bộ chạy ASR trên PCM này và chỉ ASR transcript mới được đưa vào mô hình hội thoại. Cả câu hỏi làm rõ lẫn lời xác nhận cuối cùng của Agent đều được TTS thật tổng hợp thành PCM rồi đưa vào hàng đợi của track âm thanh WebRTC chiều xuống phía máy chủ—không được giả làm giọng nói bằng âm báo kết nối, `speechSynthesis` của trình duyệt hay văn bản trên data-channel. Nhóm trực tiếp yêu cầu bên gọi cung cấp trước tên, mục tiêu, context và chỉ dẫn. Nhóm ReAct chỉ nhận một tác vụ bằng ngôn ngữ tự nhiên. Một LLM bên ngoài thực sự để lại raw request/response đã lược bỏ dữ liệu nhạy cảm, response ID, tên model chính xác, usage, finish status, latency và hash, rồi dùng các bản tóm tắt observation / reason / action có thể kiểm toán để quyết định: (1) mục tiêu cuộc gọi; (2) context đã biết; (3) thông tin còn thiếu; và (4) nội dung cần hỏi và xác nhận trong cuộc gọi. Cả hai nhóm dùng chung công cụ `complete_task` để lưu các trường được người dùng xác nhận rõ ràng. Nếu model, ASR hoặc TTS thất bại thì việc nghiệm thu thất bại ngay; không dùng planner/parser fallback cục bộ.
 >
-> Quy trình làm việc của Agent: Người dùng nói "Gọi cho phòng khám để tôi đặt lịch khám ngày mai" → Agent nghĩ xem cần thông tin gì (số điện thoại phòng khám, thời gian hẹn, tên bệnh nhân) → làm rõ cho người dùng nếu thông tin chưa đầy đủ → gọi công cụ `make_phone_call` → PineClaw thực hiện cuộc gọi, nói chuyện với bên kia, hoàn tất cuộc hẹn → Agent nhận tóm tắt và phiên âm cuộc gọi → Báo cáo kết quả cho người dùng.
+> Quy trình làm việc của Agent: Tác vụ là “Gọi cho tôi để xác nhận buổi khám răng ngày mai” → phần lập kế hoạch ReAct phát hiện còn thiếu thời gian cụ thể và mã xác nhận → người dùng nhận cuộc gọi trong trình duyệt → Agent hỏi bằng giọng nói → người dùng trả lời → Agent đọc lại thông tin và yêu cầu xác nhận cuối cùng → gọi `complete_task` → giao diện lưu transcript, các trường chính và số liệu truyền tải → Agent đọc kết quả cho người dùng. Thử nghiệm cục bộ này chỉ ghi lại những gì người dùng xác nhận; nó không giả vờ rằng phòng khám đã thực sự hoàn tất việc đặt lịch.
 >
-> **Tiêu chí chấp nhận**: Thực hiện cuộc gọi thử thành công (trước tiên bạn có thể gọi đến số điện thoại di động của mình để xác minh kết nối). Agent có thể xác định độc lập các tham số cuộc gọi theo mô tả nhiệm vụ và trích xuất chính xác thông tin chính (thời gian hẹn, số xác nhận, v.v.) sau khi cuộc gọi hoàn tất và báo cáo cho người dùng. So sánh sự khác biệt giữa việc sử dụng trực tiếp API và gọi qua vòng lặp Agent ReAct - vòng lặp sau có thể xử lý tình huống thông tin không đầy đủ (chẳng hạn như tự tìm kiếm khi người dùng không cung cấp số điện thoại).
+> **Tiêu chí chấp nhận**: Mỗi nhóm phải thiết lập một phiên WebRTC thực và đồng thời lưu lại bằng chứng về SDP offer/answer, ICE đã kết nối, data channel đã mở, sự hiện diện của track micrô trình duyệt và track chiều xuống của máy chủ, cùng số packet/byte audio RTP hai chiều lớn hơn 0. Máy chủ còn phải lưu và hash đầu vào ASR lấy từ RTP micrô, nguồn gốc Whisper checkpoint, receipt của model thật và ít nhất hai TTS asset đã được truyền đầy đủ. Canonical user transcript source chỉ được là ASR, còn Agent transcript source chỉ được là TTS; data channel chỉ được dùng cho điều khiển/phụ đề. Sau cuộc gọi, bằng chứng phải cho thấy việc làm rõ các trường còn thiếu, xác nhận rõ ràng và các trường `complete_task` có cấu trúc. Không được thay thế bằng mock, fallback, âm báo kết nối, nhập văn bản hay chỉ chạy preflight. Phần đối chiếu cũng phải cho thấy nhóm trực tiếp cần đủ bốn tham số, còn nhóm ReAct chỉ bắt đầu từ một mô tả tác vụ chưa đầy đủ nhưng có thể dùng LLM thật để nhận diện và bổ sung các trường còn thiếu trong cuộc gọi.
 >
-> Thử nghiệm này thể hiện một hướng ứng dụng quan trọng của giọng nói Agent: **Agent không chỉ có thể trò chuyện bằng giọng nói với người dùng mà còn thay mặt người dùng thực hiện các tương tác qua điện thoại với thế giới bên ngoài**. Giọng nói Agent của PineClaw được đào tạo đặc biệt để giải quyết tình trạng chờ đợi kéo dài hàng giờ, điều hướng menu điện thoại và các cuộc đàm phán phức tạp—hãy tưởng tượng việc AI gọi đến số dịch vụ khách hàng của nhà cung cấp dịch vụ của bạn trong khi chờ chuyển sang con người—các tình huống mà đường dẫn thoại nối tiếp truyền thống gặp khó khăn.
+> Thử nghiệm này cho thấy một hướng ứng dụng quan trọng của Agent thoại: **Agent không chỉ phải chờ người dùng mở cửa sổ trò chuyện; nó còn có thể chủ động thiết lập một phiên thời gian thực với các trạng thái bắt đầu, xác nhận và hoàn tất rõ ràng**. WebRTC trên trình duyệt bao quát con đường “gọi cho người dùng” dễ tái hiện nhất. Khi tác vụ đòi hỏi liên hệ với thế giới bên ngoài thay mặt người dùng, chờ nhân viên hỗ trợ hoặc điều hướng IVR, có thể kết nối cùng một hợp đồng công cụ gọi điện với nhà cung cấp PSTN/SIP tuân thủ quy định.
 
 ### Truyền phát liên kết đầy đủ các đường ống xếp tầng
 
@@ -167,6 +167,26 @@ Nhưng dù Omni có mạnh đến đâu thì về cơ bản nó cũng chỉ kế
 Để kiểm soát chi phí tính toán trong khi vẫn duy trì khả năng cao, Qwen3-Omni áp dụng kiến trúc MoE (Hỗn hợp các chuyên gia) - có thể hiểu là "gọi một nhóm chuyên gia theo yêu cầu": nó chứa nhiều mạng chuyên gia nhỏ trong nội bộ và chỉ một số mạng trong số đó phù hợp nhất với nhiệm vụ hiện tại được kích hoạt cho mỗi suy luận và phần còn lại không tham gia tính toán. Ví dụ: khi xử lý lời nói, các chuyên gia liên quan đến giọng nói chủ yếu được kích hoạt và khi xử lý hình ảnh, các chuyên gia liên quan đến thị giác chủ yếu được kích hoạt. Bằng cách này, mô hình không chỉ có tổng số tham số lớn (đảm bảo giới hạn khả năng trên) mà còn kiểm soát lượng tính toán thực tế của một mã thông báo ở mức nhỏ, từ đó cải thiện thông lượng suy luận và giảm độ trễ xếp hàng khi tải cao.
 
 Điều cần phân biệt là MoE giải quyết vấn đề thông lượng "có thể phục vụ bao nhiêu yêu cầu trên mỗi đơn vị sức mạnh tính toán". Nó không trực tiếp xác định "liệu gói âm thanh đầu tiên có thể được phát ra sớm nhất có thể hay không" - độ trễ của gói đầu tiên phụ thuộc vào kiến trúc của đầu tạo. Gói cấp thấp của Qwen3-Omni xuất phát từ thiết kế của mô-đun Talker: nó dần dần tạo ra các mã thông báo âm thanh theo cách tự động hồi quy nhiều sổ mã và hợp tác với codec nhân quả để giải mã dần dần các mã thông báo này thành dạng sóng. Do đó, ngay khi mô-đun tư duy xuất ra văn bản, Người nói có thể tiếp tục truyền phát giọng nói tổng hợp mà không cần đợi toàn bộ câu trả lời được tạo ra. Theo báo cáo chính thức, độ trễ gói đầu tiên về mặt lý thuyết khởi động nguội của nó thấp khoảng 234 mili giây, hỗ trợ 19 hiểu ngôn ngữ và tạo 10 ngôn ngữ, đồng thời dẫn đầu 22 trong số 36 điểm chuẩn âm thanh và video.
+
+**MiniCPM-o 4.5** thu nhỏ hướng tiếp cận này đến mức có thể chạy cục bộ trên một GPU phổ thông hoặc workstation. Mô hình khoảng 9B tham số được xây dựng trên SigLip2, Whisper-medium, CosyVoice2 và Qwen3-8B; nhận trực tiếp văn bản, hình ảnh, video và âm thanh, đồng thời sinh thẳng văn bản và tiếng nói. Câu hỏi hữu ích ở đây không phải là sao chép thêm một bảng xếp hạng, mà là kiểm tra nhận định end-to-end so với self-cascade ở trên: cùng một mô hình có thất bại theo cách khác nhau khi trả lời trực tiếp từ trạng thái ẩn của âm thanh và khi trước tiên làm phẳng âm thanh thành văn bản thuần túy hay không?
+
+> **Thí nghiệm 9-4 ★★: Chạy MiniCPM-o 4.5 cục bộ — End-to-End so với Self-Cascade**
+>
+> Checkpoint mở `openbmb/MiniCPM-o-4_5` được ghim ở revision `1f761131…` và chạy cục bộ bằng BF16 trên một RTX PRO 6000 Blackwell 96GB. VRAM cấp phát cực đại là 20,27GiB, thời gian tải mô hình 6,15 giây và không gọi API bên ngoài. Thinking mode được tắt có chủ ý: thí nghiệm đo khả năng bảo toàn thông tin của mô hình Omni, **không** đo “vừa nói vừa suy nghĩ” ở phần sau.
+>
+> Bốn WAV tổng hợp nhỏ gồm hai loại nhiệm vụ: hai bài toán nói mà đáp án chỉ phụ thuộc vào từ ngữ, và hai câu có nội dung giống hệt nhưng tốc độ nói nhanh hoặc chậm. Nhánh **end-to-end** đưa WAV trực tiếp vào MiniCPM-o; nhánh **self-cascade** yêu cầu chính mô hình đó tạo bản chép chỉ có từ, cố ý bỏ giọng điệu và tốc độ, rồi chỉ dựa vào văn bản này để trả lời. Cả hai nhánh đều tắt sampling.
+>
+> Bảng 9-1 Kết quả MiniCPM-o 4.5 cục bộ (bốn phép kiểm tra cơ chế, không phải benchmark)
+>
+> | Loại nhiệm vụ | End-to-end | Self-cascade | Quan sát |
+> | --- | ---: | ---: | --- |
+> | Số học ngữ nghĩa (2) | 1/2 | 2/2 | Nhánh trực tiếp nghe “twelve boxes” thành 8; bản chép tường minh giữ đúng số 12 |
+> | Tốc độ cận ngôn ngữ (2) | 2/2 | 1/2 | Hai bản chép trở thành cùng một câu, nên self-cascade cũng trả lời “slow” cho mẫu nhanh |
+> | Tổng | 3/4 | 3/4 | Cùng tổng điểm, vị trí lỗi đối nghịch |
+>
+> Lần chạy nhỏ này tái hiện dự đoán định tính: khi văn bản mang đủ thông tin liên quan, chép tường minh có thể sửa lỗi tri giác; khi đáp án phụ thuộc vào tốc độ nói, nút thắt văn bản thuần túy xóa bằng chứng không thể phục hồi. Cả hai nhánh đều đạt 75%, vì vậy end-to-end không tự động chính xác hơn. Sau khi tải, thời gian trung bình cho toàn bộ lời gọi là 0,69 giây và 0,55 giây; nhưng thứ tự cố định, độ dài đầu ra khác nhau và chỉ bốn mẫu khiến đây không phải xếp hạng độ trễ nghiêm ngặt.
+>
+> Lời gọi audio-to-audio gốc còn lưu một WAV mono 24kHz thật dài 11,56 giây, nhưng kế thừa lỗi tri giác 12→8. Phản hồi thô, bản chép, thời gian từng giai đoạn, hash và kiểm tra nghiệm thu nằm tại [`chapter9/end-to-end-speech`](../chapter9/end-to-end-speech/).
 
 **Step-Audio 2** đi theo một lộ trình khác: xử lý trực tiếp âm thanh thô đầu vào và đầu ra văn bản cũng như âm thanh để đạt được cuộc đối thoại bằng giọng nói đầu cuối thực sự. Nó không chỉ có thể hiểu những gì đã được nói (thông tin ngữ nghĩa) mà còn có thể hiểu nó được nói như thế nào - thông tin cận ngôn ngữ (Thông tin song ngữ), chẳng hạn như tâm trạng của người nói là vui hay tức giận, tốc độ nói nhanh hay ngập ngừng, giọng nói đang lên hay xuống - cũng như âm thanh xung quanh và nhạc nền. Nó tạo ra các phản hồi biểu cảm thông qua học tập phản ánh và củng cố, đồng thời tích hợp cơ chế RAG và các công cụ bên ngoài (tìm kiếm trên web, tìm kiếm âm thanh). Theo báo cáo giấy Step-Audio 2, trên tiêu chuẩn hiểu ngôn ngữ StepEval-Audio-Paralinguistic do nó đề xuất, độ chính xác của Step-Audio 2 đạt 83,09%, vượt xa mô hình full-modal nguồn mở Qwen2.5-Omni (44,18%) trong cùng thời kỳ và cũng cao hơn so với Âm thanh GPT-4o (43,45%) và Kimi-Audio (49,64%).
 
@@ -249,29 +269,6 @@ Cả hai hoạt động song song - bộ não sáng tạo không cần phải su
 
 ![Hình 9-6 Kiến trúc bộ não kép Step-Audio R1 MGRD và MPS ](images/fig9-6.svg)
 
-
-> **Thử nghiệm 9-4 ★★★: Triển khai tư duy giọng nói toàn diện bằng Step-Audio R1**
->
-> Thử nghiệm này sử dụng mô hình Step-Audio R1 để so sánh hiệu suất của các cấu hình khác nhau trong các nhiệm vụ đối thoại và tư duy lời nói. Step-Audio R1 bao gồm bộ mã hóa âm thanh, bộ chuyển đổi âm thanh và bộ giải mã Qwen2.5 32B và yêu cầu triển khai GPU nhiều thẻ.
->
-> Thử nghiệm này được đánh giá dựa trên hai nhiệm vụ: **Spoken-MQA**(câu hỏi toán học lời nói) kiểm tra xem liệu mô hình có thể thực hiện lý luận toán học nhiều bước sau khi nghe các câu hỏi nói hay không; **URO-Bench**(chuẩn mực đối thoại bằng tiếng Trung) kiểm tra chất lượng của đối thoại mở.
->
-> Cấu hình thử nghiệm được chia thành hai chiều. Đầu tiên là **thời gian suy nghĩ**: **TBS** hoàn chỉnh (Think-Before-Speak, hãy suy nghĩ trước khi nói, làm cơ sở kiểm soát không có ràng buộc về độ trễ) trước tiên sẽ tạo ra tất cả suy nghĩ trước khi nói; Để giảm độ trễ, MPS cung cấp hai biến thể "suy nghĩ trong khi nói" - **Speak-First**(còn được gọi là spkfirst, không có độ trễ, nói và suy nghĩ bắt đầu cùng lúc) và **Think-First**(còn được gọi là thkfirst, đợi cho đến khi đoạn đầu tiên của não suy nghĩ được tạo ra trước khi nói, độ trễ là khoảng 80 mã thông báo). Thứ hai là **kiến trúc**: MPS song song não kép so với TBS mô hình đơn truyền thống.
->
-> Kết quả được thể hiện trong Bảng 9-1, được sử dụng để so sánh hiệu suất của các cấu hình kiến trúc và thời gian suy nghĩ khác nhau về độ chính xác toán học và điểm đối thoại.
->
-> Bảng 9-1 So sánh các cấu hình tư duy giọng nói khác nhau của Step-Audio R1
->
-> | Cấu hình | Spoken-MQA | URO-Bench |
-> |------|-----------|-----------|
-> | Trả lời trực tiếp không cần suy nghĩ (cơ bản) | 70,6% | 77,4 |
-> | MPS Speak-First (Độ trễ bằng 0) | 92,8% | 82,5 |
-> | MPS Think-First (độ trễ ~ 80 tok) | 93,9% | 84,8 |
-> | TBS đầy đủ (không có giới hạn về độ trễ) | 93,0% | — |
->
-> Một phát hiện thú vị: Speak-First có tác động tối thiểu đến nhiệm vụ tư duy (92,8%, gần 93,0% đối với TBS đầy đủ). Nguyên nhân là do phần mở đầu của **CoT**(Chain-of-Thought, chuỗi tư duy) thường chỉ là phát biểu lại nội dung bài toán, chưa đi vào lý luận thực sự. Vì vậy, ngay cả khi mô hình bắt đầu suy nghĩ cùng lúc ngay khi mở ra thì độ chính xác cuối cùng sẽ khó bị mất đi. Một chi tiết đáng chú ý khác là: Think-First (93,9%) thậm chí còn cao hơn một chút so với TBS hoàn chỉnh không có giới hạn độ trễ (93,0%). Một lời giải thích có thể là tư duy được hình thành theo từng phân đoạn và được chuyển thành các biểu hiện theo từng phân đoạn, đóng vai trò tích cực tương tự như giám sát từng bước; tất nhiên, sự khác biệt giữa hai điều này cũng nằm trong phạm vi lỗi đánh giá và không nên diễn giải quá mức.
->
-
 Phương án thứ ba “nội hóa” tư duy thành một mô hình duy nhất, đạt được “tư duy và nói” một cách tao nhã nhất, nhưng cái giá phải trả là “mục tiêu di động” được đề cập ở đầu phần này: mô hình này phải vừa là nhà lý luận mạnh nhất, vừa là người nói theo thời gian thực, cả hai khả năng đều đang phát triển nhanh chóng và lộ trình thống nhất phải được đào tạo lại nhiều lần để theo kịp. Điều này cũng giải thích sự phân chia ngành tại thời điểm viết bài - các sản phẩm tiên tiến (GPT-Live, Grok Voice, Pine AI) theo đuổi "khả năng chuyển sang bộ não mới nhất bất cứ lúc nào" chủ yếu tập trung vào lộ trình tách rời của tùy chọn hai, trong khi tùy chọn ba phù hợp hơn cho các tình huống theo đuổi sự tự nhiên tột độ và sẵn sàng chịu chi phí đào tạo chuyên môn. Cả hai không phải là cái này thay thế cái kia, mà là sự đánh đổi giữa "bộ não có thể thay thế" và "suy nghĩ và nói chặt chẽ hơn cùng một lúc".
 
 ### Giao diện giữa nhanh và chậm: ngoài văn bản còn có thể truyền được gì nữa
@@ -339,11 +336,13 @@ Anthropic xác định ba loại công cụ để hình thành khả năng tươ
 
 **Công cụ chỉnh sửa tệp**(str_replace_editor): Chỉnh sửa an toàn đạt được thông qua khớp chuỗi. Nó hỗ trợ các hoạt động xem, tạo, thay thế, chèn và hoàn tác. Nó chính xác hơn việc ghi đè trực tiếp toàn bộ tập tin và ít có khả năng vô tình làm thay đổi nội dung khác.
 
-> **Thử nghiệm 9-6 ★: Chạy bản demo Anthropic Computer Use**
+> **Thử nghiệm 9-6 ★: Chạy Computer Use (lộ trình tham chiếu Anthropic hoặc lộ trình mô hình mở)**
 >
-> Bộ chứa đóng gói một môi trường máy tính để bàn Ubuntu hoàn chỉnh (bao gồm các công cụ phổ biến như trình duyệt và thiết bị đầu cuối). Giao diện người dùng nhận hướng dẫn tác vụ, giao diện sau gửi hướng dẫn và ảnh chụp màn hình tới Claude, mô hình trả về hướng dẫn thao tác (di chuyển chuột, nhấp chuột, nhập văn bản, v.v.) và lớp thực thi được thực thi trong màn hình ảo.
+> Lộ trình A sử dụng Anthropic Computer Use Demo. Container đóng gói một môi trường desktop Ubuntu hoàn chỉnh, gồm trình duyệt, terminal và các công cụ thông dụng khác. Frontend nhận tác vụ; backend gửi hướng dẫn và ảnh chụp màn hình đến Claude, rồi thực thi các thao tác chuột, bàn phím, terminal hoặc chỉnh sửa do mô hình trả về. Lộ trình này dùng để tìm hiểu giao thức công cụ `computer` nguyên bản; không yêu cầu mọi độc giả đều phải có quyền truy cập Anthropic API.
 >
-> Quan sát chính: Khoảng thời gian giữa mỗi hành động là 2-5 giây (chậm hơn đáng kể so với con người), nhưng nó cho thấy khả năng lập kế hoạch tốt cho các nhiệm vụ thông thường và có thể tự động chia nhỏ thành các chuỗi hoạt động hợp lý.
+> Lộ trình B sử dụng dự án đi kèm sách [`chapter9/computer-use-open-model`](../chapter9/computer-use-open-model/). Theo mặc định, dự án điều khiển browser-use bằng mô hình trọng số mở Qwen3-VL 32B Instruct, qua API được OpenRouter lưu trữ hoặc bằng cách trỏ `OPEN_MODEL_BASE_URL` đến vLLM/SGLang tự lưu trữ hay endpoint tương thích khác. Endpoint phải nhận được ảnh chụp màn hình và hỗ trợ JSON Schema nguyên bản; nếu chỉ hỗ trợ JSON thông thường, có thể bật rõ ràng chế độ tương thích schema-in-prompt.
+>
+> Hai lộ trình dùng cùng một tác vụ chỉ đọc và cùng một hợp đồng nghiệm thu: tối đa 25 bước, mỗi bước chỉ thực hiện một hành động, đồng thời lưu danh tính mô hình/endpoint, phản hồi nguyên gốc của nhà cung cấp, ảnh chụp từng bước, chuỗi hành động, câu trả lời cuối cùng và lý do dừng. Các mô hình khác nhau phải được báo cáo như những nhánh thí nghiệm riêng; không được trình bày kết quả mô hình mở như một lần tái lập Claude, cũng không được coi “container khởi động thành công” là hoàn thành tác vụ. Khoảng thời gian giữa hành động và chất lượng lập kế hoạch là kết quả đo được, không phải giả định trước rằng khoảng thời gian là 2–5 giây hoặc mô hình chắc chắn vượt trội hơn các mô hình khác.
 >
 
 ### Định vị trực quan (Nối đất)
@@ -392,9 +391,11 @@ Logic lựa chọn của ba tuyến đường có thể được tóm tắt như
 
 > **Thử nghiệm 9-7 ★: Sử dụng browser-use để đạt được hoạt động trình duyệt tự động**
 >
-> Dựa trên khung tự động hóa trình duyệt Playwright (thư viện công cụ để điều khiển trình duyệt bằng mã), kết hợp với các mô hình lớn đa phương thức để đạt được các hoạt động trình duyệt dựa trên ngôn ngữ tự nhiên. Bật chế độ trực quan hóa SoM và lưu ảnh chụp màn hình kèm theo các hộp chú thích trước mỗi quyết định.
+> Kết hợp Playwright, một framework tự động hóa trình duyệt, với mô hình đa phương thức để triển khai thao tác trình duyệt được điều khiển bằng ngôn ngữ tự nhiên. Bật trực quan hóa SoM và lưu ảnh chụp màn hình có hộp giới hạn được chú thích trước mỗi quyết định. Giao diện mô hình không bị giới hạn ở OpenAI hay Anthropic; sách cung cấp cấu hình API cho mô hình mở Qwen3-VL và giữ một base URL tổng quát tương thích OpenAI cho các dịch vụ lưu trữ khác hoặc suy luận tự lưu trữ.
 >
-> Nhiệm vụ kiểm tra "Mở Google để truy vấn thời tiết ở San Francisco": Sau khi hệ thống khởi động, ảnh chụp màn hình hiển thị trang tìm kiếm Google. Tất cả các yếu tố tương tác được đánh dấu bằng hộp giới hạn màu đỏ và số ID (thanh địa chỉ `[1]`, hộp tìm kiếm `[2]`, nút tìm kiếm `[3]`, nút "Tôi cảm thấy may mắn" `[4]`, v.v.) → nhấp vào sau khi phân tích mô hình `[2]` (hộp tìm kiếm) → Sau khi hộp tìm kiếm lấy được tiêu điểm, hãy nhập "Thời tiết San Francisco hôm nay" → Nhấp vào `[3]` (nút tìm kiếm) → Trang chuyển đến kết quả tìm kiếm. Ảnh chụp màn hình mới đánh dấu các thành phần trong thẻ thời tiết. Mô hình nhận biết và trích xuất thông tin như nhiệt độ và điều kiện thời tiết. Toàn bộ quá trình gồm 5 bước và mất khoảng 20 giây để hoàn thành.
+> Nhiệm vụ kiểm tra “Mở Google và tìm thời tiết San Francisco”: sau khi khởi động, ảnh chụp màn hình hiển thị trang tìm kiếm Google với các phần tử tương tác được đánh số. Mô hình chọn hộp tìm kiếm, nhập “San Francisco weather today”, gửi tìm kiếm rồi trích xuất nhiệt độ và điều kiện thời tiết từ trang kết quả. Khi nghiệm thu, cần kiểm tra độc lập câu trả lời và quỹ đạo, đồng thời ghi trung thực số bước thực tế và thời gian đã dùng. “5 bước, khoảng 20 giây” chỉ có thể là giá trị quan sát của một lần chạy cụ thể, không phải kết quả cố định nếu không có biên nhận thực thi.
+>
+> Lần chạy chính thức của mô hình mở được lưu trong sách sử dụng `qwen/qwen3-vl-32b-instruct` trên OpenRouter. Khi gặp CAPTCHA ở bước 4 của Google Search, mô hình không tuyên bố thành công mà chuyển sang weather.com; đến bước 16, nó đọc từ trang Today của San Francisco: 64°F, Sunny, cảm giác như 62°F, cao nhất 74°F và thấp nhất 55°F. Cả 16/16 phản hồi API đều báo đúng mô hình Qwen3-VL được yêu cầu; 15 ảnh chụp bước hợp lệ cùng quỹ đạo hành động chỉ đọc đã vượt qua nghiệm thu quyết định độc lập. Kết quả này chứng minh lộ trình API mô hình mở có thể chạy được; nó không đồng nghĩa với việc đã tái lập nhánh sử dụng công cụ `computer` nguyên bản của Anthropic.
 
 ### Có thể xem hoạt hình và nghe âm thanh Computer Use Agent
 
@@ -523,6 +524,52 @@ Có nhiều trường hợp thành công trên lộ trình này: hoạt động 
 >
 > ![Hình 9-13 Thí nghiệm 9-10 Đường ống Sim2Real RGB không mẫu ](images/fig9-13.svg)
 >
+
+## Cập nhật năm 2026: Lập kế hoạch dạng luồng và mô hình thế giới
+
+Phần robot không nên dừng ở câu “VLM viết kế hoạch và VLA thực thi”. Hãy xét ví dụ **“dọn bàn làm việc”**. Bộ lập kế hoạch dài hạn trước hết lập danh sách trạng thái—một chiếc cốc còn một nửa, giấy vụn, ba quyển sách, một chiếc laptop đang mở, thùng rác và hộp đựng—rồi phát ra các lệnh có điều kiện tiên quyết và kiểm tra thành công:
+
+1. “Di chuyển đến bàn và dừng cách mép bàn 30 cm.”
+2. “Bỏ hai mẩu giấy vào thùng rác; xác nhận không còn mẩu giấy nào.”
+3. “Giữ cốc thẳng đứng và đặt lên khay; giảm tốc nếu chất lỏng chuyển động.”
+4. “Đóng laptop và chuyển nó ra phía sau bên trái; không kéo dây nguồn.”
+5. “Xếp sách theo kích thước và cho bút vào hộp đựng.”
+6. “Chỉ lau mặt bàn sau khi đã dọn các vật dễ vỡ và thiết bị đang có điện.”
+7. “Lùi lại, quan sát lần nữa và xác nhận trạng thái cuối cùng.”
+
+Đây là một đồ thị phụ thuộc, không phải một đoạn văn mô tả. Nếu người dùng nói “cất laptop trước”, hệ thống cập nhật độ ưu tiên của mục tiêu. Nếu cốc bị đổ, robot dừng ở điểm an toàn, ghi nhận các sự kiện như `cup.orientation=fallen` và `laptop.at_risk=true`, vô hiệu hóa phần đuôi kế hoạch đã lỗi thời rồi lập kế hoạch lại: bảo vệ laptop, khống chế chỗ đổ, quan sát lại, sau đó chỉ tiếp tục những việc không bị ảnh hưởng. Các hành động đã hoàn tất không bị lặp lại. Sự cố khẩn cấp hủy chunk hiện tại; các cập nhật thông thường chờ đến điểm an toàn kế tiếp.
+
+### Thực thi theo luồng
+
+Lập kế hoạch và thực thi có thể chồng lấn. Khi một tiền tố an toàn đã sẵn sàng, bộ lập kế hoạch truyền một command hoàn chỉnh cho executor trong lúc tiếp tục lập kế hoạch phần đuôi. Mỗi command phải đầy đủ và có thể kiểm toán:
+
+~~~json
+{"type":"command.commit","seq":12,"command_id":"desk-02","command":"put paper in bin","preconditions":["paper.visible","bin.reachable"],"success":"paper_count=0","cancel_at":"before_grasp"}
+~~~
+
+Executor báo các trạng thái `started`, `succeeded`, `cancelled` hoặc `failed`. Bộ lập kế hoạch dùng các quan sát này để cập nhật phụ thuộc và áp dụng backpressure khi hàng đợi đã đầy hoặc trở nên lỗi thời. Thực thi theo luồng rút ngắn thời gian đến hành động an toàn đầu tiên; nó không cho phép chạy JSON chưa hoàn chỉnh hay suy nghĩ của mô hình chưa được kiểm chứng.
+
+### Vì sao VLA hiện nay khái quát hóa kém
+
+OpenVLA không thực sự được huấn luyện chỉ bằng cách cập nhật projector: công trình gốc cũng báo cáo các biến thể fine-tuning toàn phần, đóng băng vision encoder, chỉ huấn luyện lớp cuối và LoRA. Tuy vậy, phê bình sâu hơn vẫn đúng: một kho dữ liệu tiền huấn luyện văn bản/hình ảnh khổng lồ được nối với tập dữ liệu robot nhỏ hơn nhiều qua một con đường thích nghi hẹp; các phương pháp thích nghi ít tốn kém thường dồn hành vi mới vào projector, các mô-đun LoRA hoặc action head. Behavior cloning học ánh xạ “quan sát + chỉ dẫn → action chunk”, chứ không học các hệ quả vật lý phản thực. Không gian hành động phụ thuộc embodiment và những chunk đã lỗi thời càng hạn chế khả năng chuyển giao. Backbone ngôn ngữ biết từ “cốc”, nhưng không vì thế mà biết ma sát, chất lỏng, tiếp xúc hay dây nguồn sẽ hành xử ra sao.
+
+### Mô hình thế giới
+
+Mô hình thế giới học một chuyển tiếp có thể hành động:
+
+~~~text
+trạng thái + hành động ứng viên -> trạng thái tương lai dự đoán -> chọn và xác minh hành động
+~~~
+
+Khái niệm này rộng hơn riêng V-JEPA. Họ mô hình bao gồm mô hình dự đoán tiềm ẩn (V-JEPA 2), mô hình sinh tương tác (Genie 3 và Cosmos), World-Action Model (GeniWorld và Robust-WAM), học latent action từ video không gắn nhãn (LAWM-3D), và model-based RL (Dreamer và MuZero). Giá trị của chúng là học từ quan sát ở quy mô lớn, thử các hành động phản thực trước khi thực thi, tách động lực học dùng chung khỏi điều khiển đặc thù của từng robot, và lập kế hoạch lại khi dự đoán lệch khỏi thực tế.
+
+Các preprint năm 2026 nghiên cứu prior động lực học dùng chung và các head đặc thù cho từng embodiment (DyPES-VLA), biểu diễn hành động-thị giác cho thao tác vòng kín ngoài phân phối (GeniWorld), latent action 3D từ video con người (LAWM-3D), căn chỉnh semantic foresight (Robust-WAM) và triển khai bất đồng bộ theo thời gian thực. Đây là các kết quả hứa hẹn, chưa phải lời giải hoàn chỉnh cho bài toán khái quát hóa.
+
+### Mô hình thế giới cho Computer Use
+
+Máy tính để bàn cũng là một hệ động lực: trạng thái màn hình + click/type/scroll/wait -> trạng thái kế tiếp. Photon-1, được Induction Labs công bố vào tháng 7 năm 2026, dự đoán trạng thái kế tiếp trong không gian tiềm ẩn từ video sử dụng máy tính quy mô lớn, sau đó tinh chỉnh định dạng hành động và áp dụng RL trực tuyến. Các con số benchmark và chi phí do công ty tự đánh giá, chưa được tái lập độc lập. Một thiết kế thực tế là predictor phụ trợ: VLM chọn ngữ nghĩa và công cụ, còn predictor lưu các trạng thái kế tiếp ứng viên, sàng lọc hành động rủi ro và loại bỏ rollout lỗi thời khi ảnh chụp màn hình thực tế không khớp. Mạng, xác thực, CAPTCHA và trạng thái ẩn phía máy chủ vẫn khiến mọi hành động không thể hoàn tác phải được xác minh trong môi trường thật.
+
+Nguồn: [OpenVLA](https://arxiv.org/abs/2406.09246), [V-JEPA 2](https://ai.meta.com/blog/v-jepa-2-world-model-benchmarks/), [Genie 3](https://deepmind.google/blog/genie-3-a-new-frontier-for-world-models/), [Photon-1](https://www.inductionlabs.com/news/scaling-video-pretraining), [DyPES-VLA](https://arxiv.org/abs/2608.06374), [GeniWorld](https://arxiv.org/abs/2608.06332), [LAWM-3D](https://arxiv.org/abs/2608.05706), [Robust-WAM](https://arxiv.org/abs/2608.05903).
 
 ## Tóm tắt chương này
 

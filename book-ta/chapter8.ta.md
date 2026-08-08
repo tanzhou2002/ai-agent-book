@@ -127,6 +127,14 @@ Prompt-ஐ தானாக மேம்படுத்த பல அணுகு
 
 Skill learning-உம் இதே கோட்பாட்டைப் பின்பற்றுகிறது; ஆனால் அதன் செயல்பாட்டு வரம்பு மேலும் உள்ளூர்மயமானது. Skill-ஐ தேவைக்கேற்ப திறக்கும் பணிச்செயல் கையேடாகக் கருதலாம். பல அனுபவங்கள் இணைந்து முழுமையான insurance claim செயல்முறையை உருவாக்கினால், அமைப்பு அதற்கான Skill-ஐ உருவாக்கவோ திருத்தவோ முடியும். Candidate Skill ஒரு உரையாடல் summary மட்டும் ஆகக்கூடாது; குறைந்தபட்சம் எப்போது load செய்ய வேண்டும், precondition, operation step, அறியப்பட்ட pitfall, verification method ஆகியவற்றைக் குறிப்பிட்டு source trajectory-ஐச் சேமிக்க வேண்டும். அமைப்பு முதலில் உள்ள Skill library-இல் ஒத்த capability-ஐத் தேடுகிறது. அதே process ஏற்கனவே இருந்தால் local `patch`-க்கு முன்னுரிமை; உண்மையான புதிய தனித்த capability இருந்தால் மட்டுமே புதிய directory உருவாக்க வேண்டும். இதனால் வேறு பெயருடன் ஒரே உள்ளடக்கம் கொண்ட கையேடுகள் குவிவது தவிர்க்கப்படும். Anthropic-இன் Skill Creator[^anthropic-skill-creator] “draft—test—evaluate—revise” generation loop-ஐக் காட்டுகிறது. இது Skill-ஐ உருவாக்கவும் மேம்படுத்தவும் வழி காட்டுகிறது; ஆனால் எந்த இயக்கச் சான்று generation-ஐத் தூண்டப் போதுமானது, conflict-ஐ எவ்வாறு கையாளுவது, மாற்றத்திற்குப் பிறகு domain task மற்றும் பழைய task regression-ஐக் கடக்கிறதா என்பவையே உண்மையான சிரமங்கள்.
 
+> **பரிசோதனை 8-9 ★★: feedback-ஐ writing Skill ஆக மாற்றுதல்**
+>
+> `data/feedback_pairs.json` இன் 20 before/after ஜோடிகளை மூன்று batch-களாக ஏற்று, candidate rule-களைப் பிரித்தெடுத்து, duplicate pattern-களை இணைத்து, threshold conflict-களைச் சரிபார்த்து, source/scope உடன் `SKILL.md` உருவாக்கவும். Deterministic rule-களை code-ல் சரிபார்க்கவும்; LLM rule-களை 10 gold sample-களில் calibrate செய்யவும்.
+>
+> முடியாத task set detection, சாதாரண text false-positive, rule count growth ஆகியவற்றை ஒருசேர report செய்யவும். முதல் real run 0/8 detection, 7/8 false-positive; வெளிப்புற filtering மற்றும் deterministic fallback பிறகு 8/8, 0/8, 21 candidate-கள் 8 rule-களாக இணைந்தன. Implementation [`ai-style-skill`](../chapter8/ai-style-skill/) இல் உள்ளது.
+
+வளைந்த மேற்கோள் வழக்கு, Skill ஒரு global replacement rule அல்ல; data contract ஆக இருக்க வேண்டும் என்பதை காட்டுகிறது. SFTக்கு முன் synthetic example-களை article type, scope, programming language படி பிரித்து, code/JSON/protected-region gate மற்றும் manual audit மூலம் சரிபார்க்க வேண்டும். Exact-copy வழக்கில் tokenizer encode→decode round-trip, model byte-exact copy, Harness serialization, tool matching ஆகியவை தனித்தனி regression layer-களாக audit செய்யப்பட வேண்டும்.
+
 > **பரிசோதனை 8-3 ★★: தோல்வி trajectory-களை அடிப்படையாகக் கொண்டு system Prompt-ஐ மேம்படுத்துதல்**
 >
 > **பரிசோதனை இலக்கு**: பயனர் policy-ஐக் கேள்வி கேட்கும்போது மிக விரைவாக மனிதரிடம் transfer செய்த தோல்வி trajectory-இலிருந்து விமான வாடிக்கையாளர் சேவை Agent கற்றுக்கொள்ளச் செய்வதோடு, உண்மையில் transfer தேவைப்படும் பழைய scenario-களைப் புதிய விதி பாதிக்கவில்லை என நிரூபித்தல்.
@@ -204,6 +212,12 @@ Tool creation-உம் இதே protocol-ஐப் பின்பற்று
 
 [^alita-2025]: Qiu, J., et al. *Alita: Generalist Agent Enabling Scalable Agentic Reasoning with Minimal Predefinition and Maximal Self-Evolution.* arXiv:2505.20286, 2025.
 
+பரிசோதனை 8-8 இதே protocol-ஐ verification layer-க்கு பயன்படுத்துகிறது. User correction, குறைந்த மதிப்பீடு, audit ஆகியவை confirmation இல்லாத high-risk operation-ஐ மீண்டும் சுட்டினால் மட்டுமே change request உருவாக்கி candidate-ஐ தனிமைப்படுத்தப்பட்ட directory-யில் எழுதவும். Tool name/argument மூலம் ஆபத்தான delete மற்றும் `git push --force`-ஐ வகைப்படுத்தி, one-time token-ஐ குறிப்பிட்ட operation-க்கு bind செய்யவும். AST/static check, போலி/மீண்டும் பயன்படுத்திய token boundary replay, holdout replay அனைத்தையும் கடக்க வேண்டும்.
+
+> **பரிசோதனை 8-8 ★★: user feedback-இலிருந்து high-risk operation confirmation gate**
+>
+> `failure_trajectories.json` இன் மூன்று signal மற்றும் control trajectory-களைப் பயன்படுத்தவும். உண்மையான `gpt-4o-mini` candidate incomplete task, normal operation, one-time token check-களை கடக்காததால் security gate நிராகரித்தது. Deterministic candidate அனைத்தையும் கடந்து `release_to_canary` பெற்றது; check, decision, stable directory hash பதிவு செய்யவும். Implementation [`harness-safety-gate`](../chapter8/harness-safety-gate/) இல் உள்ளது.
+
 ### அனுபவத்தை parameters-இல் எழுதுதல்
 
 அறிவு, அறிவுறுத்தல் மற்றும் program ஆகிய அனைத்தும் ஒரு முன்நிபந்தனையை அடிப்படையாகக் கொண்டுள்ளன: இலக்கு திறனை வெளிப்புறக் குறியீடுகள் மூலம் ஒப்பீட்டளவில் முழுமையாக வெளிப்படுத்த முடியும். ஆனால் மருத்துவப் படவியல் புரிதல், இயல்பான speech prosody, உரையின் வார்ப்புருவாத “AI தன்மை” நீக்கம், long-horizon planning போன்ற திறன்களை சில விதிகள் அல்லது workflow-களாகச் சுருக்குவது கடினம். இத்தகைய திறன்கள் post-training மூலம் model parameters-இல் எழுதப்பட வேண்டும்.
@@ -225,6 +239,16 @@ Parameter learning பொதுவாக வெளிப்புற முற�
 இதே கருத்து workflow மற்றும் முழு Harness-க்கும் நீள்கிறது. AFlow பல LLM call-களால் ஆன workflow-ஐ code graph-ஆகக் காட்டி, execution feedback மூலம் node மற்றும் control-flow combination-களைத் தேடுகிறது[^aflow-2025]. Meta-Harness ஒரு Coding Agent-ஐ candidate Harness source, score மற்றும் trajectory-களை ஆய்வு செய்யச் செய்து, தகவல் எவ்வாறு store, retrieve மற்றும் present செய்யப்படுகிறது என்பதை நிர்ணயிக்கும் code-ஐத் தேடுகிறது[^meta-harness-2026]. ஐந்தாம் அத்தியாயம் code-ஐ Agent system structure-ஐ வெளிப்படுத்தும் பொதுவான மொழியாக நிறுவியது. இங்குள்ள கூடுதல் கருத்து, code மற்றும் அதன் evaluation history ஆகியவையும் one-time output அல்லாமல் continual search-இன் object-ஆக மாறலாம் என்பதாகும்.
 
 வெளிப்புற level எப்போதும் சிறந்தது அல்ல. Local rule-ஐத் தேட சில edge case-கள் போதலாம்; முழு workflow அல்லது Harness-ஐத் தேடுவது பெரிய candidate space, அதிக evaluation cost மற்றும் கடினமான attribution-ஐக் கொண்டது. ஒரு component-இல் தெளிவாக localized ஆன, மீண்டும் தோன்றும் fault-க்கு முதலில் audit செய்யக்கூடிய local patch வழங்க வேண்டும். Local change-கள் பலமுறை cross-component பிரச்சினையைத் தீர்க்கத் தவறும்போது அல்லது management method தானே bottleneck ஆகும்போது மட்டுமே workflow, Harness அல்லது optimizer level-க்கு வெளியே செல்ல வேண்டும். எல்லா level-களிலும் evaluator, permission boundary மற்றும் held-out test editable scope-க்கு வெளியே இருக்க வேண்டும்; search space பெரிதாகும்போது இந்த trusted root இன்னும் முக்கியமாகிறது.
+
+> **பரிசோதனை 8-6 ★★★: இந்தப் புத்தகத்தை Hermes-க்கு கொடுத்தால், அது தன்னையே upgrade செய்யுமா?**
+>
+> **பரிசோதனை நோக்கம்**: வெளிப்புற அறிவை Agent தனது திறனுக்கான உண்மையான update-ஆக மாற்ற முடியுமா என்பதைச் சோதிக்கிறது. சரிசெய்ய வேண்டிய பிரச்சினையோ feature பட்டியலோ கொடுக்கப்படாது. பத்து chapter-களும் Hermes-ன் source code-உம் கொடுக்கப்பட்டு, principles-ஐ புரிந்து தனது implementation-ஐ ஆய்வு செய்து ஒரு பயனுள்ள மேம்பாட்டைத் தானே தேர்ந்தெடுக்க வேண்டும்.
+>
+> **வடிவமைப்பு**: புத்தகமும் source-உம் படிக்கக்கூடிய context; ஆனால் stable version, independent Reviewer, acceptance tests ஆகியவை Hermes மாற்றக்கூடிய எல்லைக்கு வெளியே இருக்கும். அது **படி → ஒப்பிடு → தேர்ந்தெடு → மாற்று → சரிபார்** என்ற சுற்றை முடிக்க வேண்டும். Candidate நிராகரிக்கப்பட்டால் review அடுத்த learning round-க்கான input ஆகும்; gate-ஐ தாண்டி வெற்றியை அறிவிக்க முடியாது.
+>
+> **உண்மையான run**: புத்தகத்தைப் படித்த பிறகு, சேமிக்கப்பட்ட execution trajectory-களில் அடுத்த learning-க்கு நேரடியாகப் பயன்படும் structured evidence இல்லை என்பதை Hermes தானே கண்டது. Execution result-களை conservative learning signal-களாக மாற்றத் தேர்ந்து, தனது code-ஐ மாற்றி tests சேர்த்தது. முதல் மூன்று independent review-கள் real data format, persistence path, counting semantics ஆகியவற்றில் முரண்பாடுகளை கண்டன. ஒவ்வொரு finding-உம் அசல் Hermes session-க்கு திரும்பியது; நான்காவது review candidate-ஐ ஏற்றது.
+>
+> **கூற்றின் எல்லை**: நீண்ட அறிவிலிருந்து principles-ஐ எடுத்துத் தனது code-உடன் இணைத்து, external verification-ன் கீழ் Agent self-update-ஐ முடிக்க முடியும் என்பதை இந்த run காட்டுகிறது. Downstream task வெற்றி மேம்பட்டது என்பதை இது நிரூபிக்காது; அதற்கு தனி ablation experiment தேவை. இந்த experiment idea-ஐ வாசகர் Grace வழங்கினார்.
 
 ## நீண்டகாலம் இயங்கக்கூடிய தொடர்ச்சியான பரிணாமச் சுற்றை உருவாக்குதல்
 
@@ -319,7 +343,7 @@ Hermes மேலும் முழுமையான background evolution எ�
 - புதிய சான்றுகளால் மறுக்கப்பட்ட knowledge-ஐ நீக்குதல்;
 - மூல base model-இலிருந்து LoRA-வை மீண்டும் பயிற்றுவித்தல்.
 
-> **பரிசோதனை 8-6 ★★★: Agent தொடர்ச்சியாகப் பரிணமிக்கிறதா என்பதை மதிப்பிடுதல்**
+> **பரிசோதனை 8-7 ★★★: Agent தொடர்ச்சியாகப் பரிணமிக்கிறதா என்பதை மதிப்பிடுதல்**
 >
 > **பரிசோதனை இலக்கு**: “ஒருமுறை feedback-ஐச் சேமிக்கக்கூடியது”, “append மட்டும் செய்யக்கூடியது”, “capability-ஐ update, transfer மற்றும் retain செய்யக்கூடியது” என்ற மூன்று நீண்டகால நடத்தைகளை வேறுபடுத்தி, ஒரே கேள்வித் தொகுப்பை மீண்டும் இயக்குவதை continual learning எனக் காட்டுவதைத் தவிர்த்தல்.
 >

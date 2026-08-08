@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Canonical official-CAIL2018 campaign for Experiment 3-13."""
+"""Canonical official-CAIL2018 campaign for Experiment 3-12."""
 
 from __future__ import annotations
 
@@ -195,7 +195,7 @@ def discovery_batch(cache: CachedCalls, rows: List[Dict[str, Any]], index: int):
     cases = [{"id": row["id"], "charge": row["charge"], "fact": row["fact"]} for row in rows]
     return cache.json_call(
         provider="ark",
-        purpose=f"3-13 bottom-up factor discovery batch {index}",
+        purpose=f"3-12 bottom-up factor discovery batch {index}",
         messages=[{"role": "system", "content": DISCOVERY_SYSTEM}, {"role": "user", "content": json.dumps(cases, ensure_ascii=False)}],
         max_tokens=3500,
         key=f"discovery-{index:03d}",
@@ -232,7 +232,7 @@ key,name_cn,kind(numeric|bool|categorical),values,direction(aggravating|mitigati
 只返回 JSON：{{"core":[],"extensions":{{"盗窃罪":[],"故意伤害罪":[],"诈骗罪":[]}}}}。"""
     parsed, receipt = cache.json_call(
         provider="ark",
-        purpose="3-13 consolidate bottom-up factors",
+        purpose="3-12 consolidate bottom-up factors",
         messages=[{"role": "system", "content": system}, {"role": "user", "content": json.dumps(raw_factors, ensure_ascii=False)}],
         max_tokens=5000,
         key="schema-consolidation",
@@ -256,13 +256,47 @@ numeric 输出数值，bool 输出 true/false，categorical 取 schema 值；文
 保持每个 id 与 charge。只返回 JSON：{"cases":[{"id":"...","charge":"...","factors":{...}},...]}。"""
     return cache.json_call(
         provider="ark",
-        purpose=f"3-13 modular extraction batch {index}",
+        purpose=f"3-12 modular extraction batch {index}",
         messages=[
             {"role": "system", "content": system},
             {"role": "user", "content": f"DISCOVERED SCHEMA:\n{json.dumps(schema, ensure_ascii=False)}\n\nCASES:\n{json.dumps(cases, ensure_ascii=False)}"},
         ],
         max_tokens=6000,
         key=f"extraction-{index:03d}",
+    )
+
+
+def extraction_case(cache: CachedCalls, schema: Dict[str, Any], row: Dict[str, Any]):
+    """Resume a provider-sensitive missing batch one case at a time.
+
+    Some real CAIL fact combinations can make a whole ten-case request stall or
+    trip provider filtering.  A one-case retry preserves the identical schema,
+    source text, model, and extraction contract while retaining a receipt for
+    every recovered row instead of invalidating hundreds of completed calls.
+    """
+    return cache.json_call(
+        provider="ark",
+        purpose=f"3-12 modular extraction case {row['id']}",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "你是司法判例结构化抽取器。严格按给定的、由训练数据自下而上发现的 schema 抽取。"
+                    "numeric 输出数值，bool 输出 true/false，categorical 取 schema 值；文本未提及必须为 null，"
+                    "不得推断。保持 id 与 charge。只返回 JSON："
+                    '{"cases":[{"id":"...","charge":"...","factors":{...}}]}。'
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"DISCOVERED SCHEMA:\n{json.dumps(schema, ensure_ascii=False)}\n\n"
+                    f"CASE:\n{json.dumps({'id': row['id'], 'charge': row['charge'], 'fact': row['fact']}, ensure_ascii=False)}"
+                ),
+            },
+        ],
+        max_tokens=2000,
+        key=f"extraction-case-{row['id']}",
     )
 
 
@@ -305,6 +339,19 @@ def normalize_extractions(schema: Dict[str, Any], source_rows: List[Dict[str, An
     if missing:
         raise RuntimeError(f"live extraction omitted {len(missing)} cases: {missing[:5]}")
     return results
+
+
+def missing_extraction_rows(
+    source_rows: List[Dict[str, Any]], outputs: Iterable[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    """Return source rows omitted by otherwise successful extraction calls."""
+    extracted_ids = {
+        str(item.get("id"))
+        for output in outputs
+        for item in (output.get("cases") or [])
+        if item.get("id") is not None
+    }
+    return [row for row in source_rows if row["id"] not in extracted_ids]
 
 
 def build_feature_space(schema: Dict[str, Any], training: List[Dict[str, Any]]):
@@ -435,7 +482,7 @@ def advice_one(cache: CachedCalls, row: Dict[str, Any], prototype: Dict[str, Any
         },
         {"role": "user", "content": f"HELDOUT EXTRACTED FACTORS:\n{json.dumps(row['extracted'], ensure_ascii=False)}\n\nMATCHED TRAINING PROTOTYPE ONLY:\n{json.dumps(allowed, ensure_ascii=False)}"},
     ]
-    parsed, receipt = cache.json_call(provider="ark", purpose=f"3-13 held-out prototype-grounded advice {row['id']}", messages=messages, max_tokens=900, key=f"advice-{index:03d}-{row['id']}")
+    parsed, receipt = cache.json_call(provider="ark", purpose=f"3-12 held-out prototype-grounded advice {row['id']}", messages=messages, max_tokens=900, key=f"advice-{index:03d}-{row['id']}")
     advice = str(parsed.get("advice") or "").strip() + "\n\n" + DISCLAIMER
     return {"id": row["id"], "charge": row["charge"], "extracted": row["extracted"], "prototype": allowed, "advice": advice, "source_fact": row["fact"], "actual_label_months": row["label_months"], "advice_request_excludes_label": "label_months" not in json.dumps(receipt.get("request", {}), ensure_ascii=False)}, receipt
 
@@ -460,7 +507,7 @@ def judge_one(cache: CachedCalls, result: Dict[str, Any], index: int):
 "disclaimer_present":true,"unsupported_claim":false,"reasoning":"..."}}；分数 1-4。""",
         },
     ]
-    parsed, receipt = cache.json_call(provider="moonshot", purpose=f"3-13 independent held-out judge {result['id']}", messages=messages, max_tokens=700, key=f"judge-{index:03d}-{result['id']}")
+    parsed, receipt = cache.json_call(provider="moonshot", purpose=f"3-12 independent held-out judge {result['id']}", messages=messages, max_tokens=700, key=f"judge-{index:03d}-{result['id']}")
     result["judge"] = parsed
     return result, receipt
 
@@ -544,19 +591,59 @@ def main() -> int:
         raise RuntimeError("live bottom-up schema is missing core or charge extension factors")
 
     extraction_groups = [rows[start : start + args.extraction_batch] for start in range(0, len(rows), args.extraction_batch)]
-    outputs: Dict[int, Dict[str, Any]] = {}
+    outputs: Dict[str, Dict[str, Any]] = {}
+    existing_batch_checkpoints = list(cache.root.glob("extraction-[0-9][0-9][0-9].json"))
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
-        futures = {pool.submit(extraction_batch, cache, schema, group, index): index for index, group in enumerate(extraction_groups)}
+        futures = {}
+        for index, group in enumerate(extraction_groups):
+            batch_checkpoint = cache.root / f"extraction-{index:03d}.json"
+            if batch_checkpoint.exists() or not existing_batch_checkpoints:
+                futures[pool.submit(extraction_batch, cache, schema, group, index)] = (
+                    f"batch-{index:03d}", index, None
+                )
+            else:
+                # This is a resume with a missing/failed batch.  Split only the
+                # missing work; completed batch signatures remain untouched.
+                for row in group:
+                    futures[pool.submit(extraction_case, cache, schema, row)] = (
+                        f"case-{row['id']}", index, row["id"]
+                    )
         for future in concurrent.futures.as_completed(futures):
-            index = futures[future]
+            key, index, case_id = futures[future]
             try:
                 parsed, receipt = future.result()
-                outputs[index] = parsed
+                outputs[key] = parsed
                 receipts.append(receipt)
-                print(f"extraction batch {index + 1}/{len(extraction_groups)}", flush=True)
+                label = f"batch {index + 1}" if case_id is None else f"case {case_id}"
+                print(f"extraction {label}", flush=True)
             except Exception as exc:
-                errors.append({"stage": "extraction", "batch": index, "type": type(exc).__name__, "error": str(exc)})
-    extracted = normalize_extractions(schema, rows, [outputs[index] for index in sorted(outputs)])
+                errors.append({"stage": "extraction", "batch": index, "case": case_id, "type": type(exc).__name__, "error": str(exc)})
+
+    # A request can return valid JSON yet silently omit one or more records.
+    # Recover those records individually before normalization, just as we do
+    # for entirely missing batch checkpoints on resume.
+    omitted_rows = missing_extraction_rows(rows, outputs.values())
+    if omitted_rows:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
+            futures = {pool.submit(extraction_case, cache, schema, row): row for row in omitted_rows}
+            for future in concurrent.futures.as_completed(futures):
+                row = futures[future]
+                try:
+                    parsed, receipt = future.result()
+                    outputs[f"case-{row['id']}"] = parsed
+                    receipts.append(receipt)
+                    print(f"extraction omitted case {row['id']}", flush=True)
+                except Exception as exc:
+                    errors.append(
+                        {
+                            "stage": "extraction",
+                            "batch": None,
+                            "case": row["id"],
+                            "type": type(exc).__name__,
+                            "error": str(exc),
+                        }
+                    )
+    extracted = normalize_extractions(schema, rows, [outputs[key] for key in sorted(outputs)])
     train_extracted = [row for row in extracted if row["split"] == "train"]
     heldout_extracted = [row for row in extracted if row["split"] == "heldout"]
     model = fit_prototypes(schema, train_extracted, args.seed)
@@ -605,7 +692,9 @@ def main() -> int:
         "balanced_train_heldout_split": train_counts == Counter({charge: args.train_per_charge for charge in CHARGES}) and heldout_counts == Counter({charge: args.heldout_per_charge for charge in CHARGES}),
         "live_bottom_up_discovery": len(raw_discovery) > 0 and len([call for call in receipts if "factor discovery batch" in str(call.get("purpose"))]) == len(discovery_groups),
         "modular_schema_discovered": bool(schema["core"]) and all(schema["extensions"][charge] for charge in CHARGES),
-        "live_extraction_train_and_heldout": len(extracted) == len(rows) and len([call for call in receipts if "modular extraction batch" in str(call.get("purpose"))]) == len(extraction_groups),
+        "live_extraction_train_and_heldout": len(extracted) == len(rows) and len([
+            call for call in receipts if "modular extraction" in str(call.get("purpose"))
+        ]) >= len(extraction_groups),
         "cluster_diagnostics_all_charges": all(model["diagnostics"][charge]["selected_k"] >= 2 and model["diagnostics"][charge]["selected_silhouette"] > -1 for charge in CHARGES),
         "importance_model": bool(model["importance"]) and bool(model["prototypes"]),
         "heldout_advice_only_prototype_statistics": len(heldout_results) == len(evaluation_rows) and all(row["advice_request_excludes_label"] for row in heldout_results),
@@ -646,7 +735,7 @@ def main() -> int:
         "prototype_model": model,
         "heldout_advice": heldout_results,
     }
-    manifest = write_campaign_evidence(HERE, "3-13", evidence, receipts, input_paths=[HERE / "campaign.py", archive, sample_path])
+    manifest = write_campaign_evidence(HERE, "3-12", evidence, receipts, input_paths=[HERE / "campaign.py", archive, sample_path])
     print(json.dumps(manifest["summary"], ensure_ascii=False, indent=2))
     print(f"Canonical evidence: {HERE / 'validation' / 'latest.json'}")
     return 0 if acceptance["passed"] else 1

@@ -9,7 +9,7 @@ contract.  The long contracts make the full-schema control condition exceed
 50K tokens without padding it with fake tools or fake parameters.
 
 Only ``code_interpreter`` is not read-only.  It executes Python in a temporary
-directory with a timeout and is included because Experiment 4-6 explicitly
+directory with a timeout and is included because Experiment 4-7 explicitly
 keeps it as a base tool for visualization.
 """
 
@@ -480,7 +480,14 @@ def _options(raw: str) -> dict[str, Any]:
 
 
 def _limit(options: dict[str, Any], default: int = 10) -> int:
-    return max(1, min(int(options.get("limit", default)), 100))
+    raw = options.get("limit")
+    if raw is None:
+        raw = default
+    try:
+        val = int(raw)
+    except (TypeError, ValueError):
+        val = default
+    return max(1, min(val, 100))
 
 
 async def _http_json(url: str, *, params: dict[str, Any] | None = None,
@@ -997,7 +1004,7 @@ def _parameter_descriptions(spec: ExpandedToolSpec) -> tuple[str, str]:
 
 
 def register_expanded_tools(mcp) -> None:
-    """Register all 70 real-backed tools on a FastMCP instance."""
+    """Register all 70 real-backed tools on an MCPServer instance."""
     for spec in EXPANDED_SPECS:
         mcp.add_tool(_make_mcp_function(spec), name=spec.name,
                      description=full_description(spec))

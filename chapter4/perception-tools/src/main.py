@@ -10,7 +10,7 @@ This MCP server provides comprehensive perception capabilities including:
 """
 import logging
 from dotenv import load_dotenv
-from mcp.server import FastMCP
+from mcp.server import MCPServer
 from pydantic import Field
 
 # Import all tool functions
@@ -50,7 +50,7 @@ logging.basicConfig(
 load_dotenv()
 
 # Initialize MCP server
-mcp = FastMCP(
+mcp = MCPServer(
     "perception-tools",
     instructions="""
 Perception Tools MCP Server
@@ -687,7 +687,7 @@ async def notion_search(
 # catalog. The implementations and native parameter schemas remain unchanged.
 enrich_existing_tools(mcp)
 
-# Experiment 4-6 requires 120+ tools from this perception MCP server.  The
+# Experiment 4-7 requires 120+ tools from this perception MCP server.  The
 # 56 native tools plus 70 additional real-backed, read-mostly tools bring the
 # server catalog to 126 tools. Registration is dynamic only to avoid repetitive
 # wrapper functions; tools/list still

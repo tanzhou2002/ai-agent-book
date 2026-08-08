@@ -1,4 +1,4 @@
-# 实验 8-6：评估 Agent 是否在持续进化
+# 实验 8-7：评估 Agent 是否在持续进化
 
 本实验把评估对象从“单次任务是否成功”扩展到一条长期任务流。任务不会简单重复，而是依次经历四个阶段：学习阶段暴露可共享规律，迁移阶段更换表述和环境，规则变化阶段要求修订旧能力，保持阶段重新测试未变化能力与当前有效规则。
 
@@ -8,7 +8,7 @@ python -m pytest -q test_longitudinal.py test_campaign_statistics.py
 python demo.py --profile all --output output/reference-report.json
 
 # 真实验收：3 个真实模型臂 × 3 个种子 × 14 个顺序任务 = 126 次 API 调用
-python run_experiment_8_6.py \
+python run_experiment_8_7.py \
   --provider ark --model doubao-seed-1-6-250615 \
   --seeds 8601,8602,8603 --workers 6
 ```
@@ -18,7 +18,27 @@ python run_experiment_8_6.py \
 三个真实模型臂共享同一模型、任务顺序、Seed 调度和提示协议，唯一差别是模型外记忆生命周期：
 
 ```bash
-pip install -r requirements.txt
+# 从仓库根目录开始：使用共享的第 8 章环境
+uv sync --locked --python 3.12 --extra ch8
+# Apple Silicon macOS 需要 macOS 14+（锁文件中的 bitsandbytes wheel 要求）；
+# 更早的 macOS 请使用下方单项目兼容路径。
+
+# 切换目录前先激活环境：
+# macOS/Linux:
+source .venv/bin/activate
+# Windows PowerShell: .\.venv\Scripts\Activate.ps1
+# Windows cmd: .venv\Scripts\activate.bat
+
+# 未安装 uv 时可用 pip 兜底：
+# python -m pip install -e ".[ch8]"
+
+cd chapter8/self-evolution-eval
+
+# 迁移期间仍支持单项目兼容路径：
+# python -m pip install -r requirements.txt
+
+export OPENAI_API_KEY=your_api_key_here
+python demo.py --profile llm --model gpt-5.6 --output output/llm-report.json
 ```
 
 - `static` 从不持久化反馈；
@@ -63,7 +83,7 @@ Harness 在模型返回并记录当前动作之后才暴露学习信号；发往
 | `agent.py` | 三种参考行为与 static / append-only / evolving 三种真实模型臂 |
 | `harness.py` | 长期运行、分阶段统计、成本与安全评估 |
 | `demo.py` | 命令行对照实验 |
-| `run_experiment_8_6.py` | 重复、带 Seed 的三臂真实模型实验与统计/证据生成 |
+| `run_experiment_8_7.py` | 重复、带 Seed 的三臂真实模型实验与统计/证据生成 |
 | `test_longitudinal.py` | 迁移、规则更新、保持和四阶段完整性测试 |
 | `test_campaign_statistics.py` | 重复运行均值、样本标准差与 t 区间测试 |
 

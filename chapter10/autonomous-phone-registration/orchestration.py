@@ -8,10 +8,22 @@ import os
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-from browser import RegistrationBrowser
+from browser import RecoverableFillError, RegistrationBrowser
 from bus import MessageBus
 from models import DecisionRecord, FieldSpec
 from voice import PhoneChannel
+
+
+_EXTRACTION_RECEIPTS: List[Dict[str, object]] = []
+
+
+def reset_extraction_receipts() -> None:
+    _EXTRACTION_RECEIPTS.clear()
+
+
+def extraction_receipts() -> List[Dict[str, object]]:
+    """Return value-free provider metadata for experiment provenance."""
+    return [dict(item) for item in _EXTRACTION_RECEIPTS]
 
 
 async def _extract_value(field: FieldSpec, utterance: str) -> str:
@@ -49,7 +61,9 @@ async def _extract_value(field: FieldSpec, utterance: str) -> str:
                 "role": "system",
                 "content": (
                     "Extract only the value the user supplied for the requested form field. "
-                    "Never infer a missing value. Preserve identifiers exactly. Return exactly "
+                    "Never infer a missing value. Preserve identifiers exactly, while normalizing "
+                    "explicitly spoken email words such as 'at' and 'dot' to symbols and spoken "
+                    "number words to digits when the field requires them. Return exactly "
                     "one JSON object with the schema {\"value\": \"the extracted value\"}."
                 ),
             },
@@ -86,6 +100,23 @@ async def _extract_value(field: FieldSpec, utterance: str) -> str:
     else:
         raise RuntimeError("所有已配置的 Phone Agent 文本端点均失败") from last_error
     data = json.loads(response.choices[0].message.content or "{}")
+    usage = getattr(response, "usage", None)
+    _EXTRACTION_RECEIPTS.append({
+        "operation": "field_value_extraction",
+        "provider": provider,
+        "model": model,
+        "response_id": getattr(response, "id", None),
+        "usage": {
+            key: int(value)
+            for key, value in {
+                "prompt_tokens": getattr(usage, "prompt_tokens", None),
+                "completion_tokens": getattr(usage, "completion_tokens", None),
+                "total_tokens": getattr(usage, "total_tokens", None),
+            }.items()
+            if value is not None
+        },
+        "transcript_or_value_retained": False,
+    })
     return str(data.get("value", "")).strip()
 
 
@@ -260,26 +291,50 @@ class ComputerAgent:
         self.filled.append(name)
         await self.bus.send("computer_agent", "phone_agent", "field_filled", field=name)
 
+    async def _report_fill_error(self, name: str, exc: RecoverableFillError) -> None:
+        """Record one browser failure and forward the shared error envelope."""
+        error = {"field": name, "error": str(exc)}
+        self.errors.append(error)
+        await self.bus.send(
+            "computer_agent",
+            "phone_agent",
+            "fill_error",
+            sensitive_keys=("error",),
+            **error,
+        )
+
     async def run(self) -> Dict[str, object]:
         for name, value in self.known_values.items():
             if name in self.fields:
                 try:
                     await self._fill(name, value)
-                except Exception as exc:  # page-specific errors remain isolated
-                    self.errors.append({"field": name, "error": str(exc)})
+                except RecoverableFillError as exc:
+                    # Mirror the in-dialogue fill path below: surface the failure
+                    # to the phone agent (via browser_feedback) so it doesn't tell
+                    # the user registration succeeded when a known field failed.
+                    await self._report_fill_error(name, exc)
 
         completed = False
         while not completed:
-            message = await self.bus.receive("computer_agent", timeout=120)
+            # This idle cap must exceed the phone side's worst-case per-question
+            # latency (TTS + the channel's own listen window + value extraction).
+            # The default WebRTC human listen allows a start timer plus an answer
+            # timer (~240s total), so a 120s cap here aborts a live call while the
+            # user is still legitimately answering. run_parallel cancels this task
+            # the moment the phone task completes or errors, so a larger cap only
+            # relaxes the false-abort case.
+            message = await self.bus.receive("computer_agent", timeout=600)
             if message.type == "info_collected":
+                name = message.payload.get("field")
+                value = message.payload.get("value")
+                if not isinstance(name, str) or not name:
+                    raise ValueError("info_collected requires a non-empty field")
+                if not isinstance(value, str):
+                    raise ValueError("info_collected requires a string value")
                 try:
-                    await self._fill(message.payload["field"], message.payload["value"])
-                except Exception as exc:
-                    error = {"field": message.payload["field"], "error": str(exc)}
-                    self.errors.append(error)
-                    await self.bus.send(
-                        "computer_agent", "phone_agent", "fill_error", **error
-                    )
+                    await self._fill(name, value)
+                except RecoverableFillError as exc:
+                    await self._report_fill_error(name, exc)
             elif message.type == "call_failed":
                 self.errors.append({
                     "field": message.payload.get("field", ""),

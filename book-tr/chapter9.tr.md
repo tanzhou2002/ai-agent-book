@@ -75,19 +75,19 @@ Sezgisel olarak, kullanım oranı yükseldikçe bekleme süresi doğrusal olmaya
 >
 > ASR, LLM ve TTS aşamalarının her biri birden fazla sağlayıcı arasında esnek geçişi destekler; geliştirici gecikmeye, doğruluğa ve bölgesel ağ koşullarına göre en iyi bileşimi seçebilir.
 >
-> **Deney 9-2 ★: PineClaw Voice API ile Telefon Agent'ı İnşa Etmek**
+> **Deney 9-2 ★: WebRTC ile “Kullanıcıyı Arayan” Bir Sesli Agent İnşa Etmek**
 >
-> Deney 9-1, tarayıcı içinde çalışan bir sesli diyalog sistemi kurdu; ama gerçek dünyadaki pek çok Agent görevi gerçek telefon araması yapmayı gerektirir — fatura pazarlığı için müşteri hizmetlerine ulaşmak, restoran rezervasyonu yapmak, sipariş teyit etmek. Bölüm 4, PineClaw'ın Channel mekanizması üzerinden, olay güdümlü mimarinin telefon bildirimlerine verilen yanıt gecikmesini dakika ölçeğinden saniye ölçeğine nasıl indirdiğini göstermişti; bu deney ise sesli aramanın kendisinin nasıl kurulacağına odaklanıyor. [PineClaw Voice API](https://pineclaw.com/) (yazar ekibinin geliştirdiği) örneğinde olduğu gibi, bu tür üretim düzeyi telefon sesi API'leri genellikle numara çevirme, IVR gezinmesi (yani "sorgu için 1'e, temsilciye bağlanmak için 0'a basın" türünden telefon menüleri), konuşma ve transkripsiyon adımlarının tümünü kapsar: Agent telefon numarasını, hedefi ve context bilgisini verdikten sonra görüşmenin tamamını sesli Agent yürütür ve yapılandırılmış bir görüşme kaydı döndürür.
+> “Telefon Agent'ı” mutlaka PSTN'e bağlanmak ya da okuyucunun gerçek bir telefon numarası hazırlamasını gerektirmez. Hatırlatma, bilgi toplama, teyit ve takip görevlerinin çoğunda aranan taraf kullanıcının kendisidir. Böyle durumlarda tarayıcı WebRTC'sini yeniden üretmek daha kolaydır: kullanıcı yerel bir sayfa açıp mikrofon erişimine açıkça izin verir; Agent da tarayıcıyla gerçek zamanlı bir medya oturumu kurarak kullanıcıyı doğrudan “arar”. Tarayıcı, mikrofon RTP'sini yerel peer'a gönderir ve Agent'ın aşağı yönlü ses RTP'sini alır; data channel yalnızca ses gönderme kontrolünü ve erişilebilirlik altyazılarının bir kopyasını taşır, canonical kullanıcı anlamını taşımaz. Sürecin tamamı E.164 numarası ya da telefon sağlayıcısı hesabı gerektirmez. PSTN/IVR, dış kuruluşlarla mutlaka iletişim kurulması gereken üretim görevleri için hâlâ uygundur; ancak “Agent aracı olarak sesli arama”yı anlamanın ön koşulu değildir.
 >
-> **Deney Amacı**: Gerçek bir telefon araması üzerinden görev tamamlayabilen bir Agent inşa etmek; PineClaw Voice'u bir araç olarak ReAct döngüsüne entegre etmek.
+> **Deney Amacı**: Tarayıcıda proaktif olarak bir sesli oturum başlatabilen, kullanıcıdan eksik bilgileri toplayabilen, bunları okuyarak teyit ettirebilen ve yapılandırılmış bir sonuç döndürebilen bir Agent inşa etmek; karşılaştırma için hem “doğrudan çağrı” hem de “ReAct planlama” grubu bulundurmak.
 >
-> **Teknik Yaklaşım**: PineClaw Voice Python SDK'sını (`pine-voice`) kullanarak Agent'ı `make_phone_call` aracıyla donatın. Agent kullanıcının görev tanımını alır (örneğin "yarın öğleden sonra 3'e diş kontrolü randevusu al") ve ReAct düşünmesiyle şunlara karar verir: (1) hangi telefon numarasının aranacağı; (2) görüşmenin hedefi ve kilit bilgiler; (3) görüşme bittikten sonra sonucun kullanıcıya nasıl bildirileceği.
+> **Teknik Yaklaşım**: Yerel bir FastAPI hizmeti tarayıcının SDP offer'ını alır; `aiortc` answer'ı döndürür, medyayı sonlandırır ve gerçekten alınan mikrofon RTP'sini PCM'e çözer. Yerel Whisper bu PCM üzerinde ASR çalıştırır ve diyalog modeline yalnızca ASR transcript'i girer. Agent'ın hem açıklama soruları hem de son teyidi gerçek TTS ile PCM'e sentezlenip sunucunun WebRTC aşağı yönlü ses parçasında kuyruğa alınır; bağlantı tonu, tarayıcı `speechSynthesis`'i ya da data-channel metni ses yerine geçirilemez. Doğrudan grupta çağrıyı yapan taraf ad, hedef, context ve talimatları önceden vermelidir. ReAct grubu yalnızca doğal dilde bir görev alır. Gerçek bir harici LLM; hassas verileri ayıklanmış raw request/response'u, response ID'yi, tam modeli, usage'ı, finish status'ü, latency'yi ve hash'i kaydeder; ardından denetlenebilir observation / reason / action özetleriyle (1) arama hedefini, (2) bilinen context'i, (3) hangi bilgilerin eksik olduğunu ve (4) aramada nelerin sorulup teyit edileceğini belirler. İki grup da kullanıcının açıkça onayladığı alanları aynı `complete_task` aracıyla kaydeder. Model, ASR ya da TTS başarısız olursa kabul doğrudan başarısız sayılır; yerel planner/parser fallback'i kullanılmaz.
 >
-> Agent'ın iş akışı: Kullanıcı "kliniği arayıp yarına muayene randevusu al" der → Agent hangi bilgilere ihtiyaç olduğunu düşünür (kliniğin telefonu, randevu saati, hastanın adı) → bilgi eksikse kullanıcıdan açıklama ister → `make_phone_call` aracını çağırır → PineClaw numarayı arar, karşı tarafla konuşur, randevuyu tamamlar → Agent görüşme özetini ve transkripsiyonu alır → sonucu kullanıcıya bildirir.
+> Agent'ın iş akışı: Görev “Beni ara ve yarınki diş kontrolünü teyit et”tir → ReAct planlaması kesin saatin ve teyit numarasının eksik olduğunu belirler → kullanıcı tarayıcıda aramayı yanıtlar → Agent sesli olarak sorar → kullanıcı yanıtlar → Agent bilgileri tekrar okuyup son teyidi ister → `complete_task` aracını çağırır → arayüz transcript'i, kilit alanları ve aktarım istatistiklerini kaydeder → Agent sonucu kullanıcıya sesli olarak okur. Bu yerel deney yalnızca kullanıcının teyit ettiği bilgileri kaydeder; kliniğin gerçek bir randevuyu tamamladığı izlenimini vermez.
 >
-> **Kabul Kriterleri**: Test aramasının başarıyla yapılması (bağlantıyı doğrulamak için önce kendi cep telefonunuzu arayabilirsiniz). Agent'ın görev tanımına dayanarak görüşme parametrelerini kendi başına belirleyebilmesi; görüşme bittikten sonra kilit bilgileri (randevu saati, teyit numarası vb.) doğru biçimde çıkarıp kullanıcıya bildirmesi. API'yi doğrudan kullanmakla Agent'ın ReAct döngüsü üzerinden çağırmak arasındaki farkı karşılaştırın — ikincisi bilgilerin eksik olduğu durumların da üstesinden gelebilir (örneğin kullanıcı telefon numarasını vermediyse önce arama yapmak).
+> **Kabul Kriterleri**: Her iki grup da birer gerçek WebRTC oturumu kurmalı ve SDP offer/answer, ICE bağlantısının kurulması, data channel'ın açılması, tarayıcı mikrofon parçası ile sunucunun aşağı yönlü parçasının varlığı ve çift yönlü audio RTP packet/byte değerlerinin sıfırdan büyük olmasıyla ilgili kanıtları birlikte bırakmalıdır. Sunucu ayrıca mikrofon RTP'sinden türetilen ASR girdisini ve hash'ini, Whisper checkpoint kökenini, gerçek model receipt'ini ve eksiksiz aktarılmış en az iki TTS asset'ini kaydetmelidir. Canonical kullanıcı transcript source'u yalnızca ASR, Agent transcript source'u yalnızca TTS olmalıdır; data channel yalnızca kontrol/altyazı için kullanılabilir. Arama sonrasında kanıtlar eksik alanların açıklığa kavuşturulduğunu, açık teyidi ve yapılandırılmış `complete_task` alanlarını göstermelidir. Mock, fallback, bağlantı tonu, metin girdisi ya da yalnızca preflight çalıştırma bunların yerine geçemez. Karşılaştırma ayrıca doğrudan grubun dört eksiksiz parametreye ihtiyaç duyduğunu; ReAct grubunun ise tek bir eksik görev tanımıyla başlayıp gerçek LLM'in eksik alanları belirleyerek arama sırasında tamamlayabildiğini göstermelidir.
 >
-> Bu deney, sesli Agent'ların önemli bir uygulama yönünü gösterir: **Agent yalnızca kullanıcıyla sesli konuşmakla kalmaz, kullanıcı adına dış dünyayla telefon üzerinden de etkileşime girebilir**. PineClaw'ın sesli Agent'ı özel olarak eğitilmiştir; saatler süren beklemelerin, telefon menüsü gezinmelerinin ve karmaşık pazarlıkların üstesinden gelebilir — yapay zekânın sizin yerinize operatörün müşteri hizmetlerini arayıp temsilciye bağlanmayı beklediğini bir düşünün; bunlar tam da geleneksel seri ses hattının altından kalkmakta zorlandığı senaryolardır.
+> Bu deney, sesli Agent'ların önemli bir uygulama yönünü gösterir: **Agent yalnızca kullanıcının sohbet penceresini açmasını beklemek zorunda değildir; başlangıç, teyit ve tamamlanma durumları açık olan gerçek zamanlı bir oturumu proaktif biçimde kurabilir**. Tarayıcı WebRTC'si, yeniden üretilmesi en kolay “kullanıcıyı ara” yolunu kapsar. Kullanıcı adına dış dünyayla iletişim kurmak, insan müşteri temsilcisini beklemek ya da IVR'da gezinmek gerektiğinde aynı arama aracı sözleşmesi mevzuata uygun bir PSTN/SIP sağlayıcısına bağlanabilir.
 
 ### Kaskad Boru Hattında Baştan Sona Akış
 
@@ -161,6 +161,26 @@ Ama Omni ne kadar güçlü olursa olsun, özünde üç modeli tek bir modelde bi
 **OpenAI Realtime API**, model düzeyinde uçtan uca olana yakındır (model sesi doğrudan, kendi içinde işler); ama etkileşim kontrolü düzeyinde hâlâ geleneksel VAD'ye bağımlı olduğundan, tam uçtan uca mimariye geçiş yolundaki bir ara çözümdür. Başlangıçta (2024'teki preview sürümünde) GPT-4o üzerinde çalışıyordu; 2025'te resmen GA olduktan sonra bağımsız ve sese özel bir model olan **gpt-realtime**'a geçti (artık GPT-4o'nun bir modu değil, gerçek zamanlı ses için ayrıca optimize edilmiş bir modeldir). API varsayılan olarak sunucu tarafı VAD'yi devreye alır ve kullanıcının ne zaman konuşmaya başlayıp ne zaman bitirdiğini kendiliğinden belirler. Konuşma sırasında araya girmeyi destekler — kullanıcının söze başladığını algıladığı anda o sırada üretilen sesi hemen durdurur; tıpkı yüz yüze sohbet eden iki kişiden biri araya girdiğinde diğerinin doğal olarak susması gibi. gpt-realtime ayrıca asenkron fonksiyon çağırmayı da getirdi: model bir yandan aracın sonuç döndürmesini beklerken bir yandan kullanıcıyla konuşmayı sürdürebilir ve araç gecikmesini konuşmanın içine gizleyebilir. Bunların hepsi deneyimi iyileştirir, ama özünde hâlâ VAD çerçevesi içinde yapılan iyileştirmelerdir. **Gemini Live API** benzer bir yaklaşım izler; VAD hassasiyetinin yapılandırılmasını destekler ve araya girme durumunda konuşmanın tutarlı kalması için önceden gönderilmiş bilgileri korur.
 
 **Qwen3-Omni**, Thinker-Talker mimarisini kullanır: düşünmeyi (anlama ve reasoning) ifadeden (konuşma üretiminden) ayırıp iki özelleşmiş modüle böler ve metin, görüntü, ses ile videoya ilişkin algıyı ve üretimi tek çatı altında birleştirir. Qwen3-Omni'nin düşük ilk paket gecikmesi, üretim tarafındaki (Talker) mimariden gelir: ses token'larını çok kod kitaplı öz bağlanımlı bir biçimde adım adım üretir, nedensel (causal) bir codec de bu token'ları artımlı olarak dalga biçimine çözer; böylece düşünme modülü metni üretir üretmez Talker hemen ardından akışlı olarak konuşma sentezleyebilir, yanıtın tamamının üretilmesini beklemesi gerekmez. Resmî rapora göre soğuk başlangıçtaki teorik ilk paket gecikmesi 234ms'ye kadar düşüyor; 19 dilde anlamayı ve 10 dilde üretimi destekliyor, 36 ses-video benchmark'ının 22'sinde önde gidiyor.
+
+**MiniCPM-o 4.5**, bu hattı tek bir tüketici ya da iş istasyonu GPU'sunda yerel olarak çalışabilecek ölçeğe sıkıştırır. SigLip2, Whisper-medium, CosyVoice2 ve Qwen3-8B üzerine kurulu yaklaşık 9B parametreli model; metin, görüntü, video ve sesi yerel olarak kabul eder, doğrudan metin ve konuşma üretir. Buradaki yararlı deney başka bir sıralamayı kopyalamak değil, yukarıdaki uçtan uca ile öz-kademeli yaklaşım iddiasını sınamaktır: aynı model, sesin gizil durumlarından doğrudan yanıtlarken ve sesi önce düz metne indirgerken farklı biçimlerde mi hata yapar?
+
+> **Deney 9-4 ★★: MiniCPM-o 4.5'i Yerel Çalıştırmak — Uçtan Uca ve Öz-Kademeli Karşılaştırması**
+>
+> Açık `openbmb/MiniCPM-o-4_5` checkpoint'i `1f761131…` revision'ına sabitlendi ve tek bir 96GB RTX PRO 6000 Blackwell üzerinde BF16 ile yerel çalıştırıldı. Tepe VRAM tahsisi 20,27GiB, model yükleme süresi 6,15 saniyeydi; dış API çağrısı yapılmadı. Thinking mode özellikle kapatıldı: deney Omni modelinin bilgiyi koruyup korumadığını ölçer, sonraki bölümdeki “konuşurken düşünme”yi değil.
+>
+> Dört küçük sentetik WAV iki görev türünü kapsar: yanıtı yalnızca sözcüklere bağlı iki sözlü aritmetik sorusu ve sözcükleri aynı, konuşma hızları hızlı/yavaş iki kayıt. **Uçtan uca kol** WAV'ı doğrudan MiniCPM-o'ya verir; **öz-kademeli kol** aynı modele ton ve hızı özellikle dışarıda bırakan yalnız-sözcük transkripti ürettirir ve yalnızca bu metinden yanıtlar. İki kolda da örnekleme kapalıdır.
+>
+> Tablo 9-1 MiniCPM-o 4.5 yerel sonuçları (dört mekanizma kontrolü; benchmark değildir)
+>
+> | Görev türü | Uçtan uca | Öz-kademeli | Gözlem |
+> | --- | ---: | ---: | --- |
+> | Anlamsal aritmetik (2) | 1/2 | 2/2 | Doğrudan yol “twelve boxes” ifadesini 8 olarak duydu; açık transkript doğru 12'yi korudu |
+> | Paralinguistik hız (2) | 2/2 | 1/2 | İki transkript aynı cümleye dönüştü; öz-kademeli yol hızlı örneğe de “slow” dedi |
+> | Toplam | 3/4 | 3/4 | Toplam aynı, hata yerleri karşıt |
+>
+> Bu küçük çalışma nitel öngörüyü yeniden üretti: metin tüm ilgili bilgiyi taşıyorsa açık transkript algı hatasını düzeltebilir; yanıt konuşma hızına bağlıysa düz metin darboğazı kanıtı geri döndürülemez biçimde siler. İki kol da %75 aldığı için uçtan uca otomatik olarak daha doğru değildir. Yükleme sonrası ortalama tam çağrı 0,69 sn ve 0,55 sn idi; ancak sabit çalışma sırası, farklı çıktı uzunlukları ve yalnızca dört örnek nedeniyle bu değerler sıkı bir gecikme sıralaması değildir.
+>
+> Yerel audio-to-audio çağrısı ayrıca gerçek bir 11,56 saniyelik, 24kHz mono WAV sakladı, ancak 12→8 algı hatasını devraldı. Ham yanıtlar, transkriptler, aşama süreleri, hash'ler ve kabul kontrolleri [`chapter9/end-to-end-speech`](../chapter9/end-to-end-speech/) içindedir.
 
 **Step-Audio 2** farklı bir yol izler: ham ses girdisini doğrudan işler, hem metin hem ses üretir ve gerçek anlamda uçtan uca sesli diyalog gerçekleştirir. Yalnızca ne söylendiğini (anlamsal bilgiyi) anlamakla kalmaz, nasıl söylendiğini de algılar — paralinguistik bilgiyi (Paralinguistic Information): konuşanın duygusunun sevinç mi öfke mi olduğunu, konuşma hızının aceleci mi tereddütlü mü olduğunu, tonlamanın yükselen mi alçalan mı olduğunu — ve arka plandaki ortam sesleriyle müziği. Düşünme ve pekiştirmeli öğrenme yoluyla ifade gücü yüksek yanıtlar üretir; ayrıca bir RAG mekanizmasını ve harici araçları (web araması, ses araması) da bünyesine katar. Step-Audio 2 makalesinde bildirilene göre, kendi önerdikleri StepEval-Audio-Paralinguistic paralinguistik anlama benchmark'ında Step-Audio 2'nin doğruluğu %83,09'a ulaşarak aynı dönemin açık kaynak tam modlu modeli Qwen2.5-Omni'nin (%44,18) önüne geçmiş; GPT-4o Audio (%43,45) ve Kimi-Audio (%49,64) değerlerinin de üstünde kalmıştır.
 
@@ -243,29 +263,6 @@ Birkaç yinelemenin ardından düşünmenin temeli metin soyutlamasından akusti
 
 ![Şekil 9-6: Step-Audio R1 MGRD ve MPS Çift Beyin Mimarisi](images/fig9-6.svg)
 
-
-> **Deney 9-4 ★★★: Step-Audio R1 ile Uçtan Uca Sesli Düşünmeyi Gerçekleştirmek**
->
-> Bu deney, Step-Audio R1 modelini kullanarak farklı yapılandırmaların sesli düşünme ve diyalog görevlerindeki başarımını karşılaştırır. Step-Audio R1; ses kodlayıcı, ses adaptörü ve Qwen2.5 32B kod çözücüden oluşur ve çok GPU'lu bir dağıtım gerektirir.
->
-> Deney iki görev üzerinde değerlendirme yapar: **Spoken-MQA** (sesli matematik soruları), modelin sözlü olarak dinlediği bir problemin ardından çok adımlı matematiksel reasoning yapıp yapamadığını sınar; **URO-Bench** (Çince sözlü diyalog benchmark'ı) açık uçlu diyalog kalitesini ölçer.
->
-> Test yapılandırmaları iki boyuta ayrılır. Birincisi **düşünme zamanlamasıdır**: eksiksiz **TBS** (Think-Before-Speak, önce düşünmeyi bitir sonra konuş; gecikme kısıtı olmayan kontrol taban çizgisi olarak kullanılır) düşünmenin tamamını üretip ondan sonra söze başlar. Gecikmeyi düşürmek için MPS iki "düşünürken konuşma" varyantı sunar — **Speak-First** (spkfirst olarak da anılır; sıfır gecikme, konuşmaya başlama ile düşünme aynı anda devreye girer) ve **Think-First** (thkfirst olarak da anılır; düşünme beyni ilk parçayı üretene kadar beklenir, gecikmesi yaklaşık 80 token). İkincisi **mimaridir**: MPS'nin çift beyinli paralel yapısı ile geleneksel tek modelli TBS.
->
-> Sonuçlar Tablo 9-1'de gösteriliyor; farklı düşünme zamanlaması ve mimari yapılandırmalarının matematik doğruluğu ile diyalog puanı üzerindeki başarımını karşılaştırmak için kullanılıyor.
->
-> Tablo 9-1 Step-Audio R1'in Farklı Sesli Düşünme Yapılandırmalarının Karşılaştırması
->
-> | Yapılandırma | Spoken-MQA | URO-Bench |
-> |------|-----------|-----------|
-> | Düşünmeden doğrudan yanıt (taban çizgisi) | %70,6 | 77,4 |
-> | MPS Speak-First (sıfır gecikme) | %92,8 | 82,5 |
-> | MPS Think-First (~80 tok gecikme) | %93,9 | 84,8 |
-> | Eksiksiz TBS (gecikme kısıtı yok) | %93,0 | — |
->
-> İlginç bir bulgu şudur: Speak-First'ün düşünme görevleri üzerindeki etkisi çok küçüktür (%92,8, eksiksiz TBS'nin %93,0 değerine yakın). Bunun nedeni, **CoT**'un (Chain-of-Thought, düşünce zinciri) başlangıcının genellikle yalnızca sorunun içeriğini tekrarlaması ve henüz gerçek reasoning'e girmemiş olmasıdır; dolayısıyla model söze başlar başlamaz düşünmeyi de aynı anda devreye alsa bile nihai doğruluk neredeyse hiç zarar görmez. Dikkate değer bir başka ayrıntı da şudur: Think-First (%93,9), gecikme kısıtı olmayan eksiksiz TBS'den (%93,0) hafifçe daha yüksektir — olası bir açıklama, düşünmenin parça parça üretilip parça parça ifadeye dönüştürülmesinin adım adım denetime benzer olumlu bir etki yaratmasıdır; elbette aradaki fark değerlendirme hata payının içinde kaldığından fazla yorumlanmamalıdır.
->
-
 Çözüm 3 düşünmeyi tek bir modelin içine "içselleştirerek" "düşünürken konuşmayı" en zarif biçimde gerçekleştirir; ama bedeli tam da bu kısmın başında söylenen "hareketli hedeftir": bu tek model hem en güçlü reasoning yapan olmak hem de gerçek zamanlı konuşan olmak zorundadır ve iki yetenek de hızla evrildiğinden, birleşik hat ayak uydurabilmek için defalarca yeniden eğitilmek durumundadır. Bu, bu satırların yazıldığı dönemdeki sektörel ayrışmayı da açıklıyor — "istenildiği an en yeni beyne geçebilme" peşindeki öncü ürünler (GPT-Live, Grok Voice, Pine AI) çoğunlukla Çözüm 2'nin ayrıştırma hattına oynuyor; Çözüm 3 ise azami doğallığı hedefleyen ve özel eğitim maliyetini üstlenmeye razı olan senaryolara daha uygun. İkisi birbirinin yerini almaz; bu, "değiştirilebilir beyin" ile "daha sıkı bir düşünürken konuşma" arasındaki bir ödünleşimdir.
 
 ### Hızlı ile Yavaş Arasındaki Arayüz: Metin Dışında Başka Ne Aktarılabilir
@@ -333,11 +330,13 @@ Anthropic, eksiksiz bir etkileşim yeteneği oluşturan üç tür araç tanımla
 
 **Dosya düzenleme aracı** (str_replace_editor): Dizi eşleştirmesi yoluyla güvenli düzenleme sağlar; görüntüleme, oluşturma, değiştirme, ekleme ve geri alma işlemlerini destekler. Dosyanın tamamının üzerine yazmaktan daha kesindir ve alakasız içeriği yanlışlıkla değiştirme olasılığı daha düşüktür.
 
-> **Deney 9-6 ★: Anthropic Computer Use Demo'sunu Çalıştırmak**
+> **Deney 9-6 ★: Computer Use'ı Çalıştırmak (Anthropic Referans Yolu veya Açık Model Yolu)**
 >
-> Konteyner, eksiksiz bir Ubuntu masaüstü ortamını (tarayıcı, terminal gibi yaygın araçlarla birlikte) paketler. Ön uç görev talimatlarını alır, arka uç talimatları ekran görüntüleriyle birlikte Claude'a gönderir, model işlem talimatlarını döndürür (fareyi hareket ettirme, tıklama, metin girme vb.) ve yürütme katmanı bunları sanal masaüstünde uygular.
+> A yolu Anthropic Computer Use Demo'yu kullanır. Konteyner, tarayıcı, terminal ve diğer yaygın araçları içeren eksiksiz bir Ubuntu masaüstü ortamı sunar. Ön uç görevi alır; arka uç talimatları ve ekran görüntülerini Claude'a gönderir, ardından modelin döndürdüğü fare, klavye, terminal veya düzenleme eylemlerini yürütür. Bu yol, yerleşik `computer` aracı protokolünü anlamaya yöneliktir; her okuyucunun Anthropic API erişimine sahip olmasını gerektirmez.
 >
-> Kilit gözlem: Her eylem arasında 2-5 saniye geçer (insandan belirgin biçimde yavaştır), ama yaygın görevlerde iyi bir planlama yeteneği gösterir ve görevleri makul işlem dizilerine kendi başına ayrıştırabilir.
+> B yolu, kitabın [`chapter9/computer-use-open-model`](../chapter9/computer-use-open-model/) eşlikçi projesini kullanır. Varsayılan olarak browser-use'ı açık ağırlıklı Qwen3-VL 32B Instruct ile çalıştırır; OpenRouter barındırılan API'si kullanılabilir veya `OPEN_MODEL_BASE_URL`, kendi barındırdığınız vLLM/SGLang ya da başka bir uyumlu uç noktaya yönlendirilebilir. Uç nokta ekran görüntülerini kabul etmeli ve yerleşik JSON Schema'yı desteklemelidir; yalnızca normal JSON destekliyorsa schema-in-prompt uyumluluk modu açıkça etkinleştirilebilir.
+>
+> İki yol da aynı salt okunur görevi ve aynı kabul sözleşmesini kullanır: en fazla 25 adım, adım başına tek bir eylem ve model/uç nokta kimliğinin, ham sağlayıcı yanıtlarının, adım adım ekran görüntülerinin, eylem dizisinin, nihai yanıtın ve durma nedeninin saklanması. Farklı modeller ayrı deney kolları olarak raporlanmalıdır; açık model sonucu Claude yeniden üretimi gibi sunulmamalı, “konteyner başarıyla başladı” ifadesi görev tamamlandı sayılmamalıdır. Eylem aralıkları ve planlama kalitesi ölçülen sonuçlardır; 2–5 saniye olacağı veya diğer modellerden mutlaka üstün olacağı önceden varsayılmaz.
 >
 
 ### Görsel Konumlandırma (Grounding)
@@ -386,9 +385,11 @@ Koordinat tahmini çözümlerinde modelin koordinatları kavrayışı, eğitim s
 
 > **Deney 9-7 ★: browser-use ile Otomatik Tarayıcı İşlemleri**
 >
-> Playwright tarayıcı otomasyon çerçevesini (tarayıcıyı kodla denetlemeye yarayan bir kütüphane) çok modlu büyük modellerle birleştirerek doğal dille sürülen tarayıcı işlemlerini gerçekleştirin. SoM görselleştirme modunu etkinleştirin ve her karardan önce işaretleme kutularının bulunduğu ekran görüntüsünü kaydedin.
+> Tarayıcı otomasyon çerçevesi Playwright'ı çok modlu bir modelle birleştirerek doğal dille yönlendirilen tarayıcı işlemlerini gerçekleştirin. SoM görselleştirmesini etkinleştirin ve her karardan önce açıklamalı sınırlayıcı kutular içeren ekran görüntüsünü kaydedin. Model arayüzü OpenAI veya Anthropic ile sınırlı değildir; kitap, açık Qwen3-VL modeli için API yapılandırması sağlar ve diğer barındırılan hizmetler ya da kendi barındırdığınız çıkarım için genel bir OpenAI uyumlu base URL sunar.
 >
-> "Google'ı aç ve San Francisco hava durumunu sorgula" test görevi: Sistem başlatıldıktan sonra alınan ekran görüntüsü Google arama sayfasını gösterir ve tüm etkileşimli öğeler kırmızı sınırlayıcı kutular ile ID numaralarıyla işaretlenmiştir (adres çubuğu `[1]`, arama kutusu `[2]`, arama düğmesi `[3]`, "Kendimi Şanslı Hissediyorum" düğmesi `[4]` vb.) → model analiz ettikten sonra `[2]`ye (arama kutusu) tıklar → arama kutusu odağı aldıktan sonra "San Francisco weather today" yazılır → `[3]`e (arama düğmesi) tıklanır → sayfa arama sonuçlarına geçer, yeni ekran görüntüsünde hava durumu kartının içindeki öğeler işaretlenir ve model sıcaklık, hava koşulu gibi bilgileri tanıyıp çıkarır. Tüm süreç 5 adım sürer ve yaklaşık 20 saniyede tamamlanır.
+> “Google'ı aç ve San Francisco hava durumunu sorgula” test görevi: Başlatma sonrasında ekran görüntüsü, numaralandırılmış etkileşimli öğelerle Google arama sayfasını gösterir. Model arama kutusunu seçer, “San Francisco weather today” yazar, aramayı gönderir ve sonuç sayfasından sıcaklık ile hava koşullarını çıkarır. Kabul sırasında yanıt ve iz bağımsız olarak doğrulanır; gerçek adım sayısı ve geçen süre olduğu gibi kaydedilir. “5 adım, yaklaşık 20 saniye” yalnızca belirli bir çalışmanın gözlem değeri olabilir; yürütme kaydı olmadan sabit sonuç sayılamaz.
+>
+> Kitapta saklanan resmi açık model çalışması, OpenRouter üzerindeki `qwen/qwen3-vl-32b-instruct` modelini kullandı. Model Google Search'ün 4. adımında CAPTCHA ile karşılaştığında başarılı olduğunu iddia etmedi; weather.com'a geçti ve 16. adımda San Francisco Today sayfasından 64°F, Sunny, hissedilen 62°F, en yüksek 74°F ve en düşük 55°F bilgilerini okudu. 16 API yanıtının tamamı istenen Qwen3-VL modelini bildirdi; 15 geçerli adım ekran görüntüsü ve salt okunur eylem izi bağımsız deterministik kabulden geçti. Bu sonuç açık model API yolunun çalıştığını kanıtlar; Anthropic'in yerleşik `computer` aracı kolunun yeniden üretildiği anlamına gelmez.
 
 ### Animasyon Görebilen, Ses Duyabilen Computer Use Agent'ı
 
@@ -517,6 +518,52 @@ Bu bölümde asıl tamamlanması gereken şey, domain randomization'ı gerçek b
 >
 > ![Şekil 9-13: Deney 9-10 zero-shot RGB Sim2Real hattı](images/fig9-13.svg)
 >
+
+## 2026 Güncellemesi: Akışkan Planlama ve Dünya Modelleri
+
+Robotik bölümü “VLM bir plan yazar, VLA da uygular” cümlesinde bitmemeli. **“Masayı düzenle”** görevini düşünelim. Uzun ufuklu planlayıcı önce yarısı dolu bir fincanı, kâğıt parçalarını, üç kitabı, açık bir dizüstü bilgisayarı, çöp kutusunu ve bir saklama kutusunu içeren durum listesini çıkarır; ardından önkoşulları ve başarı kontrolleri olan komutlar üretir:
+
+1. “Masaya git ve kenardan 30 cm uzakta dur.”
+2. “İki kâğıt parçasını çöp kutusuna koy; hiç kâğıt kalmadığını doğrula.”
+3. “Fincanı dik tutup tepsiye yerleştir; sıvı hareket ederse yavaşla.”
+4. “Dizüstü bilgisayarı kapatıp arka sola taşı; güç kablosunu çekme.”
+5. “Kitapları boyutlarına göre istifle ve kalemleri saklama kutusuna koy.”
+6. “Kırılabilir ve elektriğe bağlı eşyalar kaldırıldıktan sonra masayı sil.”
+7. “Geri çekil, yeniden gözlemle ve son durumu doğrula.”
+
+Bu bir düzyazı paragrafı değil, bir bağımlılık grafiğidir. Kullanıcı “dizüstünü önce kaldır” derse sistem hedef önceliğini günceller. Fincan devrilirse robot güvenli bir noktada durur, `cup.orientation=fallen` ve `laptop.at_risk=true` gibi olguları kaydeder, eskimiş planın kuyruğunu geçersiz kılar ve yeniden planlar: dizüstünü koru, dökülen sıvıyı kontrol altına al, tekrar gözlemle, sonra yalnızca etkilenmeyen görevleri sürdür. Tamamlanmış eylemler tekrarlanmaz. Acil olaylar mevcut parçayı iptal eder; sıradan güncellemeler bir sonraki güvenli noktayı bekler.
+
+### Akışkan yürütme
+
+Planlama ile yürütme üst üste bindirilebilir. Güvenli bir önek hazır olur olmaz planlayıcı, kuyruğun geri kalanını planlamaya devam ederken eksiksiz bir komutu yürütücüye akıtır. Komut olayı eksiksiz ve denetlenebilir olmalıdır:
+
+~~~json
+{"type":"command.commit","seq":12,"command_id":"desk-02","command":"put paper in bin","preconditions":["paper.visible","bin.reachable"],"success":"paper_count=0","cancel_at":"before_grasp"}
+~~~
+
+Yürütücü `started`, `succeeded`, `cancelled` veya `failed` durumlarından birini bildirir. Planlayıcı bu gözlemlerle bağımlılıkları günceller; kuyruk eskimiş ya da doluysa backpressure uygular. Akışkan yürütme ilk güvenli eyleme kadar geçen süreyi kısaltır; eksik JSON’un veya doğrulanmamış model düşüncelerinin çalıştırılmasına izin vermez.
+
+### Güncel VLA’lar neden kötü genelleme yapıyor?
+
+OpenVLA tam anlamıyla yalnızca projector güncellenerek eğitilmiş değildir: özgün çalışma tam fine-tuning’in yanı sıra dondurulmuş vision encoder, yalnızca son katman ve LoRA varyantlarını da raporlar. Yine de temel eleştiri geçerlidir. Çok büyük bir metin/görüntü ön eğitim külliyatı, çok daha küçük bir robot veri kümesine dar bir uyarlama yoluyla bağlanır; düşük maliyetli uyarlama yeni davranışı çoğu zaman projector, LoRA modülleri veya action head üzerinde yoğunlaştırır. Behavior cloning “gözlem + talimat → action chunk” eşlemesini öğrenir, karşı-olgusal fiziksel sonuçları değil. Embodiment’e özgü eylem uzayları ve eskimiş action chunk’lar aktarımı daha da sınırlar. Dil backbone’u “fincan” kelimesini bilse de sürtünme, sıvı, temas ve güç kablosunun nasıl davranacağını bu yüzden bilmez.
+
+### Dünya modelleri
+
+Bir dünya modeli eyleme dönüştürülebilir bir geçiş öğrenir:
+
+~~~text
+durum + aday eylem -> tahmin edilen gelecek durum -> eylemi seç ve doğrula
+~~~
+
+Bu kavram yalnızca V-JEPA’dan ibaret değildir. Aile; latent predictive model’leri (V-JEPA 2), etkileşimli üretici modelleri (Genie 3 ve Cosmos), World-Action Model’leri (GeniWorld ve Robust-WAM), etiketsiz videodan latent action öğrenimini (LAWM-3D) ve model tabanlı RL’yi (Dreamer ve MuZero) kapsar. Değeri; büyük ölçekte gözlemden öğrenmek, eylemleri gerçekleştirmeden önce karşı-olgusal sonuçlarını sınamak, ortak dinamikleri embodiment’e özgü kontrolden ayırmak ve tahmin gerçeklikten saptığında yeniden planlamaktır.
+
+2026 tarihli yeni preprint’ler ortak dinamik öncüllerini ve embodiment’e özgü head’leri (DyPES-VLA), dağılım dışı kapalı çevrim manipülasyon için görsel-eylem temsillerini (GeniWorld), insan videolarından 3B farkındalıklı latent action’ları (LAWM-3D), semantic foresight alignment’ı (Robust-WAM) ve eşzamansız gerçek zamanlı dağıtımı inceliyor. Bunlar umut verici araştırma sonuçlarıdır; genellemenin çözüldüğünü göstermezler.
+
+### Computer Use için dünya modelleri
+
+Masaüstü de dinamik bir sistemdir: ekran durumu + click/type/scroll/wait -> sonraki durum. Induction Labs’ın Temmuz 2026’da duyurduğu Photon-1, büyük ölçekli Computer Use videolarından latent sonraki durum tahmini yapar; ardından eylem biçimlendirmesini fine-tune eder ve online RL uygular. Şirketin benchmark ve maliyet rakamları şirket içi değerlendirmelerdir; henüz bağımsız olarak yeniden üretilmemiştir. Pratik bir tasarım yan yardımcı bir predictor kullanır: VLM anlamı ve araçları seçer, predictor aday sonraki durumları önbelleğe alır, riskli eylemleri süzer ve gerçek ekran görüntüleri uyuşmadığında eskimiş rollout’ları atar. Ağ, kimlik doğrulama, CAPTCHA ve sunucunun gizli durumu, geri alınamaz her eylemin gerçek ortamda doğrulanmasını zorunlu kılar.
+
+Kaynaklar: [OpenVLA](https://arxiv.org/abs/2406.09246), [V-JEPA 2](https://ai.meta.com/blog/v-jepa-2-world-model-benchmarks/), [Genie 3](https://deepmind.google/blog/genie-3-a-new-frontier-for-world-models/), [Photon-1](https://www.inductionlabs.com/news/scaling-video-pretraining), [DyPES-VLA](https://arxiv.org/abs/2608.06374), [GeniWorld](https://arxiv.org/abs/2608.06332), [LAWM-3D](https://arxiv.org/abs/2608.05706), [Robust-WAM](https://arxiv.org/abs/2608.05903).
 
 ## Bölüm Özeti
 

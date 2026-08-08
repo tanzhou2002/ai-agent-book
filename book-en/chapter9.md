@@ -69,19 +69,19 @@ Intuitively, the higher the utilization, the more steeply—and nonlinearly—th
 >
 > The ASR, LLM, and TTS stages each support flexible switching between multiple providers, allowing developers to choose the optimal combination based on latency, accuracy, and regional network conditions.
 >
-> **Experiment 9-2 ★: Building a Phone Agent Using the PineClaw Voice API**
+> **Experiment 9-2 ★: Using WebRTC to Build a Voice Agent That “Calls the User”**
 >
-> Experiment 9-1 built an in-browser voice dialogue system, but many real-world Agent tasks require making actual phone calls—contacting customer service to negotiate bills, booking restaurants, confirming orders. Chapter 4 demonstrated, through PineClaw's Channel mechanism, how an event-driven architecture can reduce the response latency for phone notifications from minutes to seconds. This experiment focuses on building the voice call itself. Taking the [PineClaw Voice API](https://pineclaw.com/) (developed by the author's team) as an example, such production-grade telephony voice APIs typically encapsulate the entire process of dialing, IVR navigation (i.e., "For inquiries, press 1; for an operator, press 0" phone menus), conversation, and transcription: the Agent provides the phone number, goal, and context information, and the voice Agent completes the entire call, returning a structured call record.
+> A “Phone Agent” does not necessarily need a PSTN connection or require the reader to prepare a real phone number. In many reminder, information-collection, confirmation, and follow-up tasks, the called party is the user. Browser WebRTC is easier to reproduce in such cases: the user opens a local page and explicitly grants microphone access, and the Agent establishes a real-time media session with the browser to “call” the user directly. The browser sends microphone RTP to the local peer and receives the Agent's downstream audio RTP; the data channel carries only audio-submission control and an accessibility-caption mirror, not the canonical user semantics. The entire process requires neither an E.164 number nor a telephony-provider account. PSTN/IVR remains appropriate for production tasks that must contact external organizations, but it is not a prerequisite for understanding “voice calls as an Agent tool.”
 >
-> **Experiment Goal**: Build an Agent capable of completing tasks via real phone calls, integrating PineClaw Voice as a tool into the ReAct loop.
+> **Experiment Goal**: Build an Agent that can proactively initiate a browser voice session, collect missing information from the user, read it back for confirmation, and return a structured result; retain both a “direct call” group and a “ReAct planning” group for comparison.
 >
-> **Technical Approach**: Use the PineClaw Voice Python SDK (`pine-voice`) to equip the Agent with a `make_phone_call` tool. The Agent receives the user's task description (e.g., "Help me book a dental checkup for tomorrow at 3 PM") and, using ReAct reasoning, determines: (1) which phone number to call; (2) the goal and key information for the call; and (3) how to report the results to the user after the call ends.
+> **Technical Approach**: A local FastAPI service receives the browser's SDP offer; `aiortc` returns the answer, terminates the media, and decodes the microphone RTP actually received into PCM. Local Whisper performs ASR on this PCM, and only the ASR transcript enters the dialogue model. Both the Agent's clarification questions and final confirmation are synthesized into PCM by real TTS and queued on the server's downstream WebRTC audio track—not impersonated by a connection tone, browser `speechSynthesis`, or data-channel text. The direct group requires the caller to supply the name, goal, context, and instructions in advance. The ReAct group receives only a natural-language task. A real external LLM leaves a redacted raw request/response, response ID, exact model, usage, finish status, latency, and hash, then uses auditable observation/reason/action summaries to decide: (1) the call objective; (2) known context; (3) what information is missing; and (4) what to ask and confirm during the call. Both groups use the same `complete_task` tool to save fields explicitly confirmed by the user. If the model, ASR, or TTS fails, acceptance fails directly; there is no local planner/parser fallback.
 >
-> The Agent's workflow: User says "Call the clinic to book an appointment for tomorrow" → Agent thinks about what information is needed (clinic phone number, appointment time, patient name) → If information is insufficient, asks the user for clarification → Calls the `make_phone_call` tool → PineClaw dials the number, converses with the other party, and completes the booking → Agent receives the call summary and transcript → Reports the result to the user.
+> The Agent's workflow: The task is “Call me to confirm tomorrow's dental checkup” → ReAct planning discovers that the exact time and confirmation number are missing → The user answers in the browser → The Agent asks by voice → The user responds → The Agent reads the details back and requests final confirmation → Calls `complete_task` → The interface saves the transcript, key fields, and transport statistics → The Agent reads the result back to the user. This local experiment records only what the user confirms; it does not pretend that a clinic has completed a real appointment.
 >
-> **Acceptance Criteria**: Successfully make a test call (can first call your own phone to verify connectivity). The Agent can autonomously determine call parameters based on the task description. After the call ends, it correctly extracts key information (appointment time, confirmation number, etc.) and reports it to the user. Compare the difference between using the API directly and calling it through the Agent's ReAct loop—the latter can handle situations with incomplete information (e.g., searching for the phone number if the user didn't provide it).
+> **Acceptance Criteria**: Each group must establish a real WebRTC session and retain evidence of the SDP offer/answer, connected ICE, an open data channel, the presence of both the browser microphone track and the server's downstream track, and nonzero bidirectional audio RTP packets/bytes. The server must also save and hash the ASR input derived from microphone RTP, Whisper checkpoint provenance, a real model receipt, and at least two fully transmitted TTS assets. The canonical user transcript source must be ASR, the Agent transcript source must be TTS, and the data channel may be used only for control/captions. After the call, the evidence must show clarification of missing fields, explicit confirmation, and structured `complete_task` fields. Mocks, fallbacks, connection tones, text input, and preflight-only runs are not substitutes. The comparison must also show that the direct group requires four complete parameters, while the ReAct group starts from one incomplete task description and uses a real LLM to identify and collect the missing fields during the call.
 >
-> This experiment demonstrates an important application direction for voice Agents: **Agents can not only have voice conversations with users but also interact with the outside world via phone calls on behalf of the user**. PineClaw's voice Agent is specifically trained to handle hour-long waits, phone menu navigation, and complex negotiations—imagine having an AI call your carrier's customer service line for you and wait on hold for a human operator. These are precisely the scenarios where traditional serial voice pipelines struggle.
+> This experiment demonstrates an important application direction for voice Agents: **an Agent need not merely wait for the user to open a chat window; it can proactively establish a real-time session with explicit start, confirmation, and completion states**. Browser WebRTC covers the easiest-to-reproduce “call the user” path. When the task instead requires contacting the outside world on the user's behalf, waiting for a human service representative, or navigating IVR, the same call-tool contract can be connected to a compliant PSTN/SIP provider.
 
 ### Full-Chain Streaming of the Cascaded Pipeline
 
@@ -162,6 +162,26 @@ To keep capability high while controlling computational cost, Qwen3-Omni adopts 
 
 A distinction worth keeping straight: MoE improves throughput—how many requests a unit of compute can serve. It does not directly determine how soon the first audio packet can be emitted; first-packet latency depends on the generation architecture. Qwen3-Omni's low first-packet latency comes from its Talker module: it generates audio tokens incrementally using multi-codebook autoregression, while a causal codec incrementally decodes those tokens into a waveform. As soon as the thinking module produces text, the Talker can begin streaming speech without waiting for the full response. According to the official report, its theoretical cold-start first-packet latency is approximately 234ms. It supports understanding in 19 languages and generation in 10, and leads on 22 of 36 audio-video benchmarks.
 
+**MiniCPM-o 4.5** compresses this route to a scale that can run locally on one consumer or workstation GPU. Built on SigLip2, Whisper-medium, CosyVoice2, and Qwen3-8B, it has about 9B parameters, natively accepts text, images, video, and audio, and directly generates text and speech. Besides turn-based voice conversation, it also exposes a full-duplex streaming mode. The useful experiment here is not another copied leaderboard. It is the end-to-end versus self-cascade claim above: for the same model and the same sound, does answering directly from audio latent states fail differently from first flattening that sound into plain text?
+
+> **Experiment 9-4 ★★: Run MiniCPM-o 4.5 Locally—End-to-End versus Self-Cascade**
+>
+> We pinned the open checkpoint `openbmb/MiniCPM-o-4_5` at revision `1f761131…` and ran it locally in BF16 on one 96GB RTX PRO 6000 Blackwell. Peak allocated VRAM was 20.27GiB, model loading took 6.15 seconds, and no external API was called. To keep two questions separate, thinking mode was disabled: this experiment measures information preservation in an Omni model, **not** “thinking while speaking” in the later section.
+>
+> Four small synthetic WAV files cover two task types: two spoken arithmetic questions whose answers depend only on words, and two utterances with identical words but fast versus slow delivery. The **end-to-end arm** gives each WAV directly to MiniCPM-o; the **self-cascade arm** asks the same MiniCPM-o to produce a words-only transcript that deliberately omits tone and pace, then answers from that transcript alone. Sampling is disabled in both arms.
+>
+> Table 9-1 Local MiniCPM-o 4.5 Results (four mechanism checks, not a benchmark)
+>
+> | Task type | End-to-end | Self-cascade | Observation |
+> | --- | ---: | ---: | --- |
+> | Semantic arithmetic (2) | 1/2 | 2/2 | End-to-end heard “twelve boxes” as 8; explicit transcription retained the correct 12 |
+> | Paralinguistic pace (2) | 2/2 | 1/2 | Both transcripts became the same sentence, so self-cascade also guessed “slow” for the fast sample |
+> | Total | 3/4 | 3/4 | Same total, opposite failure locations |
+>
+> This tiny run reproduced the qualitative prediction above: when text carries all relevant information, explicit transcription can correct a perceptual error; when the answer depends on speaking rate, a plain-text bottleneck irreversibly removes the evidence. It is also a warning against equating “end-to-end” with “more accurate”—both arms scored 75%. After loading, mean whole-call latency was 0.69 seconds end-to-end and 0.55 seconds self-cascade, but fixed run order, unequal output lengths, and four samples make this unsuitable as a latency ranking.
+>
+> A final native audio-to-audio call retained an 11.56-second, 24kHz mono WAV, closing the local “listen → answer → speak” path. Its answer also inherited the end-to-end arm's 12-to-8 perception error. Raw responses, model-produced transcripts, stage timings, input/output hashes, and acceptance checks are in [`chapter9/end-to-end-speech`](../chapter9/end-to-end-speech/).
+
 **Step-Audio 2** takes a different route: it directly processes raw audio input and outputs both text and audio, achieving true end-to-end voice conversation. It can not only understand *what* is said (semantic information) but also perceive *how* it is said—paralinguistic information, such as whether the speaker's emotion is happy or angry, whether the speech rate is rapid or hesitant, whether the intonation is rising or falling—as well as background environmental sounds and music. It generates expressive responses through thinking and reinforcement learning, and also integrates a RAG mechanism and external tools (web search, audio search). According to the Step-Audio 2 paper, on their proposed StepEval-Audio-Paralinguistic benchmark for paralinguistic understanding, Step-Audio 2 achieves an accuracy of 83.09%, well ahead of the contemporaneous open-source omnimodal model Qwen2.5-Omni (44.18%), and also surpassing GPT-4o Audio (43.45%) and Kimi-Audio (49.64%).
 
 Step-Audio R1 is a follow-up model in the Step-Audio series. Building on Step-Audio 2's end-to-end voice conversation architecture, it further internalizes thinking capabilities directly into the audio model. The two represent a progressive evolution along the same technical path.
@@ -240,28 +260,6 @@ The two run in parallel: the Formulation Brain does not need to finish reasoning
 
 ![Figure 9-6: Step-Audio R1 MGRD and MPS Dual-Brain Architecture](images/fig9-6.svg)
 
-> **Experiment 9-4 ★★★: Using Step-Audio R1 for End-to-End Spoken Reasoning**
->
-> This experiment uses Step-Audio R1 to compare several configurations on spoken-reasoning and dialogue tasks. The model consists of an audio encoder, an audio adapter, and a Qwen2.5 32B decoder, and requires a multi-GPU deployment.
->
-> This experiment evaluates two tasks: **Spoken-MQA** (Spoken Math Questions) tests whether the model can perform multi-step mathematical reasoning after hearing an orally presented problem; **URO-Bench** (Chinese Oral Dialogue Benchmark) evaluates the quality of open-ended dialogue.
->
-> Test configurations are divided into two dimensions. The first is **Thinking Timing**: the full **TBS** (Think-Before-Speak) configuration, which serves as a latency-unconstrained control baseline, generates all thoughts before speaking. To reduce latency, MPS offers two "think-while-speaking" variants—**Speak-First** (also called spkfirst, zero latency, with speaking and thinking starting simultaneously) and **Think-First** (also called thkfirst, waiting for the thinking brain to produce the first segment before speaking, with a latency of about 80 tokens). The second dimension is **Architecture**: MPS's parallel dual-brain architecture versus traditional single-model TBS.
->
-> Table 9-1 compares the mathematical accuracy and dialogue scores of the different timing and architecture configurations.
->
-> Table 9-1 Comparison of Step-Audio R1 Spoken-Reasoning Configurations
->
-> | Configuration | Spoken-MQA | URO-Bench |
-> |------|-----------|-----------|
-> | Answer directly without thinking (Baseline) | 70.6% | 77.4 |
-> | MPS Speak-First (Zero Latency) | 92.8% | 82.5 |
-> | MPS Think-First (~80 tok Latency) | 93.9% | 84.8 |
-> | Complete TBS (No Latency Constraint) | 93.0% | — |
->
-> An interesting finding is that Speak-First has minimal impact on thinking tasks (92.8% is close to the full TBS configuration's 93.0%). The reason is that the beginning of a **CoT** (Chain-of-Thought) usually just restates the problem content and hasn't yet entered true reasoning. Therefore, even if the model starts thinking simultaneously with speaking, the final accuracy is hardly affected. Another noteworthy detail is that Think-First (93.9%) is even slightly higher than the latency-unconstrained full TBS configuration (93.0%). One possible explanation is that producing thoughts in segments and converting them segment by segment into speech may function like step-by-step supervision and improve performance; however, the difference is within the margin of error and should not be overinterpreted.
->
-
 Solution 3 internalizes thinking into a single model—the most elegant realization of "thinking while speaking"—but the price is exactly the "moving target" from the start of this section: one model must be both the strongest reasoner and a real-time speaker, and with both capabilities evolving fast, the unified route must retrain again and again to keep pace. Hence the industry divide at the time of writing: frontier products that want to swap in the latest brain at will (GPT-Live, Grok Voice, Pine AI) mostly bet on Solution 2's decoupling, while Solution 3 suits products that chase ultimate naturalness and can absorb the specialized training cost. Neither replaces the other; it is a trade-off between the ability to swap in a reasoning model and more tightly integrated thinking and speech.
 
 ### The Interface Between Fast and Slow: What Else Can Be Passed Besides Text
@@ -325,11 +323,13 @@ Anthropic defines three types of tools that constitute a complete interaction ca
 
 **File Editing Tool** (`str_replace_editor`): Enables safe editing through string matching and supports view, create, replace, insert, and undo operations. It is more precise than overwriting an entire file and less likely to modify unrelated content accidentally.
 
-> **Experiment 9-6 ★: Running the Anthropic Computer Use Demo**
+> **Experiment 9-6 ★: Running Computer Use (Anthropic Reference Path or Open-Model Path)**
 >
-> The container includes a complete Ubuntu desktop environment with a browser, terminal, and other common tools. The frontend receives the task instructions, the backend sends those instructions and screenshots to Claude, and the model returns actions such as moving the mouse, clicking, and typing. The system then executes those actions on the virtual desktop.
+> Path A uses the Anthropic Computer Use Demo. Its container packages a complete Ubuntu desktop environment, including a browser, terminal, and other common tools. The frontend receives a task, while the backend sends the instructions and screenshots to Claude and then executes the mouse, keyboard, terminal, or editing actions returned by the model. This path is intended for understanding the native `computer` tool protocol; it does not require every reader to have access to the Anthropic API.
 >
-> Key observation: Each action cycle takes 2-5 seconds, making the system significantly slower than a human. Even so, it demonstrates good planning on common tasks and autonomously decomposes them into reasonable action sequences.
+> Path B uses this book's [`chapter9/computer-use-open-model`](../chapter9/computer-use-open-model/) companion. By default, it drives browser-use with the open-weight Qwen3-VL 32B Instruct model, either through the OpenRouter hosted API or by pointing `OPEN_MODEL_BASE_URL` to self-hosted vLLM/SGLang or another compatible endpoint. The endpoint must accept screenshots and support native JSON Schema; if it supports only ordinary JSON, the schema-in-prompt compatibility mode can be enabled explicitly.
+>
+> Both paths use the same read-only task and acceptance contract: a maximum of 25 steps, one action per step, and retention of the model/endpoint identity, raw provider responses, step-by-step screenshots, action sequence, final answer, and stop reason. Different models must be reported as separate experimental arms; an open-model result must not be presented as a Claude reproduction, nor should successful container startup be treated as task completion. Action intervals and planning quality are measured outcomes, not assumptions of a 2–5-second interval or inevitable superiority over other models.
 >
 
 ### Visual Grounding
@@ -378,9 +378,11 @@ The choice among the three routes can be summarized as follows: **when structure
 
 > **Experiment 9-7 ★: Using browser-use to Implement Automated Browser Operations**
 >
-> Combine Playwright, a browser-automation framework, with a multimodal model to implement browser operations driven by natural-language instructions. Enable SoM visualization and save screenshots with annotated bounding boxes before each decision.
+> Use Playwright, a browser-automation framework, together with a multimodal model to implement browser operations driven by natural language. Enable SoM visualization and save a screenshot with annotated bounding boxes before every decision. The model interface is not limited to OpenAI or Anthropic; the book provides an API configuration for the open Qwen3-VL model and retains a generic OpenAI-compatible base URL for other hosted services or self-hosted inference.
 >
-> Test task "Open Google and query San Francisco weather": After the system starts, the screenshot shows the Google search page, with all interactive elements annotated with red bounding boxes and ID numbers (address bar `[1]`, search box `[2]`, search button `[3]`, "I'm Feeling Lucky" button `[4]`, etc.) → The model analyzes and clicks `[2]` (the search box) → The search box gains focus and the model types "San Francisco weather today" → The model clicks `[3]` (the search button) → The page navigates to the search results, and the next screenshot shows annotated elements within the weather card, allowing the model to identify and extract information such as temperature and weather conditions. The entire process takes 5 steps and about 20 seconds.
+> Test task "Open Google and query San Francisco weather": after startup, a screenshot shows the Google search page with numbered interactive elements. The model selects the search box, enters "San Francisco weather today," submits the search, and then extracts the temperature and conditions from the results page. During acceptance, independently verify the answer and trajectory and record the actual step count and elapsed time. "5 steps and about 20 seconds" can only be an observation from a particular run, not a fixed result stated without an execution receipt.
+>
+> The book's preserved official open-model run used `qwen/qwen3-vl-32b-instruct` on OpenRouter. When the model encountered a CAPTCHA on Google Search at step 4, it did not claim success; it switched to weather.com and, at step 16, read 64°F, Sunny, feels like 62°F, high 74°F, and low 55°F from San Francisco's Today page. All 16 of 16 API responses reported the requested Qwen3-VL model, and 15 valid step screenshots plus the read-only action trajectory passed independent deterministic acceptance. This result demonstrates that the open-model API path runs successfully; it does not mean that the Anthropic-native `computer` tool arm has been reproduced.
 
 ### A Computer Use Agent That Can Watch Animations and Hear Sound
 
@@ -507,6 +509,52 @@ What this chapter adds are the two engineering steps you cannot skip when taking
 >
 > ![Figure 9-13: Experiment 9-10 Zero-Shot RGB Sim2Real Pipeline](images/fig9-13.svg)
 >
+
++## 2026 Update: Streaming Planning and World Models
+
+The robot section should not stop at “a VLM writes a plan and a VLA executes it.” Consider **“tidy the desk.”** A long-horizon planner first builds a state list—half-full cup, waste paper, three books, an open laptop, a bin, and a storage box—and emits commands with preconditions and success checks:
+
+1. “Move to the desk and stop 30 cm from its edge.”
+2. “Put the two paper scraps in the bin; verify that no scraps remain.”
+3. “Keep the cup upright and place it on the tray; slow down if the liquid moves.”
+4. “Close the laptop and move it to the rear-left; do not pull its power cable.”
+5. “Stack the books by size and put the pens in the storage box.”
+6. “Only after fragile and powered objects are clear, wipe the desk.”
+7. “Step back, observe again, and verify the final state.”
+
+This is a dependency graph, not a paragraph of prose. If the user says “put the laptop away first,” the system updates the goal priority. If the cup falls, it stops at a safe point, records facts such as cup.orientation=fallen and laptop.at_risk=true, invalidates the stale suffix, and replans: protect the laptop, contain the spill, re-observe, then resume only the unaffected tasks. Completed actions are not repeated. Emergency events cancel the current chunk; ordinary updates wait for the next safe point.
+
+### Streaming execution
+
+Planning and execution can overlap. Once a safe prefix is complete, the planner streams a complete command to the executor while continuing to plan the suffix. A command event must be complete and auditable:
+
+~~~json
+{"type":"command.commit","seq":12,"command_id":"desk-02","command":"put paper in bin","preconditions":["paper.visible","bin.reachable"],"success":"paper_count=0","cancel_at":"before_grasp"}
+~~~
+
+The executor reports started, succeeded, cancelled, or failed. The planner uses these observations to update dependencies and applies backpressure when the queue is stale or full. Streaming reduces time to the first safe action; it does not authorize executing partial JSON or unverified model thoughts.
+
+### Why current VLAs generalize poorly
+
+OpenVLA is not literally trained by updating only its projector: the original work reports full fine-tuning as well as frozen-vision, last-layer, and LoRA variants. The deeper criticism remains valid. A huge text/image pretraining corpus is connected to a much smaller robot dataset through a narrow adaptation path, and downstream low-cost adaptation often concentrates new behavior in a projector, LoRA modules, or an action head. Behavior cloning learns “observation + instruction → action chunk,” not counterfactual physical consequences. Embodiment-specific action spaces and stale action chunks further limit transfer. A language backbone knows the word “cup”; it does not thereby know how friction, liquid, contact, and power cables behave.
+
+### World models
+
+A world model learns an actionable transition:
+
+~~~text
+state + candidate action -> predicted future state -> select and verify an action
+~~~
+
+It is broader than V-JEPA alone. The family includes latent predictive models (V-JEPA 2), interactive generative models (Genie 3 and Cosmos), World-Action Models (GeniWorld and Robust-WAM), latent-action learning from unlabeled video (LAWM-3D), and model-based RL (Dreamer and MuZero). The value is to learn from observation at scale, test counterfactual actions before execution, separate shared dynamics from embodiment-specific control, and replan when prediction and reality diverge.
+
+Recent 2026 preprints explore shared dynamics priors and embodiment-specific heads (DyPES-VLA), visual-action representations for OOD closed-loop manipulation (GeniWorld), 3D-aware latent actions from human video (LAWM-3D), semantic foresight alignment (Robust-WAM), and asynchronous real-time deployment. These are promising research results, not solved generalization.
+
+### World models for Computer Use
+
+A desktop is also a dynamical system: screen state + click/type/scroll/wait -> next state. Induction Labs’ July 2026 Photon-1 uses latent next-state prediction from large-scale computer-use video, then fine-tunes action formatting and applies online RL. The company reports internal benchmark and cost results; these have not been independently reproduced. A practical design is a sidecar predictor: the VLM chooses semantics and tools, while the predictor caches candidate next states, screens risky actions, and discards stale rollouts after real screenshots disagree. Network, authentication, CAPTCHA, and hidden server state remain reasons to verify every irreversible action in the real environment.
+
+Sources: [OpenVLA](https://arxiv.org/abs/2406.09246), [V-JEPA 2](https://ai.meta.com/blog/v-jepa-2-world-model-benchmarks/), [Genie 3](https://deepmind.google/blog/genie-3-a-new-frontier-for-world-models/), [Photon-1](https://www.inductionlabs.com/news/scaling-video-pretraining), [DyPES-VLA](https://arxiv.org/abs/2608.06374), [GeniWorld](https://arxiv.org/abs/2608.06332), [LAWM-3D](https://arxiv.org/abs/2608.05706), [Robust-WAM](https://arxiv.org/abs/2608.05903).
 
 ## Chapter Summary
 

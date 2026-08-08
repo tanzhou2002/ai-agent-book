@@ -101,8 +101,9 @@ PROVIDERS = {
         "voice=reference_id（留空用默认音色），走 /v1/tts；key 亦可用别名 FISHAUDIO_API_KEY。",
     ),
     "minimax": ProviderInfo(
-        "minimax", "Minimax", ("MINIMAX_API_KEY", "MINIMAX_GROUP_ID"),
-        "voice=voice_id，model 默认 speech-01-turbo；需额外 GroupId。",
+        "minimax", "Minimax", ("MINIMAX_API_KEY",),
+        "voice=voice_id，model 默认 speech-2.8-hd（另有 speech-2.8-turbo）；Bearer 鉴权，"
+        "MINIMAX_REGION 选 global(api.minimax.io)/cn(api.minimaxi.com)。",
     ),
     "doubao": ProviderInfo(
         "doubao", "豆包（火山引擎）", ("DOUBAO_APP_ID", "DOUBAO_ACCESS_TOKEN"),
@@ -113,7 +114,9 @@ PROVIDERS = {
 # 各 provider 的代表性配置（--providers 选中时，每个 provider 取这一条参与对比）。
 # 非 OpenAI 的 voice/model 取各家常见默认值，可在此按账号可用音色调整。
 PROVIDER_CONFIGS = {
-    "openai": TTSConfig("openai-alloy", provider="openai", model="tts-1", voice="alloy"),
+    # Reuse the identical default-grid identity so a cross-provider campaign
+    # can audit an existing OpenAI artifact instead of synthesizing it twice.
+    "openai": TTSConfig("tts1-alloy-1.0", provider="openai", model="tts-1", voice="alloy"),
     "elevenlabs": TTSConfig("elevenlabs-multi", provider="elevenlabs",
                             model="eleven_multilingual_v2", voice="21m00Tcm4TlvDq8ikWAM"),
     # This immutable reference ID is the same real source voice used to build
@@ -126,8 +129,8 @@ PROVIDER_CONFIGS = {
         model="s1",
         voice=os.getenv("FISH_REFERENCE_ID", "6df3c1e14c9440e9ac978556536bf116"),
     ),
-    "minimax": TTSConfig("minimax-turbo", provider="minimax",
-                        model="speech-01-turbo", voice="male-qn-qingse"),
+    "minimax": TTSConfig("minimax-hd", provider="minimax",
+                        model="speech-2.8-hd", voice="male-qn-qingse"),
     "doubao": TTSConfig("doubao-tts", provider="doubao",
                        model="volcano_tts", voice="zh_female_qingxin"),
 }
